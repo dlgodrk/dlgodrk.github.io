@@ -17,6 +17,7 @@ import {
   MAX_WEEKLY_HOURS,
   monthlyHoursExact,
   netMonthly2026,
+  shownHoursAreExact,
   yearOverYear,
   type MinWageYear,
 } from "@/lib/calc/minimum-wage";
@@ -47,9 +48,8 @@ export function MinimumWageCalculator() {
   const r = valid ? calcMinimumWage({ year, weeklyHours: weekly, dailyHours: daily, probation }) : null;
   const yoy = valid ? yearOverYear({ weeklyHours: weekly, dailyHours: daily, probation }) : null;
   const net = r && year === 2026 && weekly >= JUHYU_MIN_WEEKLY_HOURS ? netMonthly2026(r.monthly) : null;
-  const isFullTime = weekly === MAX_WEEKLY_HOURS;
-  const exactHours = valid ? monthlyHoursExact(weekly) : 0;
-  const roundedUp = r ? r.monthlyHours - exactHours > 1e-6 : false;
+  // 월급 uses the exact 월 환산 시간; the 0.01h value shown is marked ≈/약 unless it is exact (209, 182.5 …).
+  const hoursExact = r ? shownHoursAreExact(r.monthlyPayHours, r.monthlyHours) : true;
 
   return (
     <CalcLayout
@@ -102,7 +102,7 @@ export function MinimumWageCalculator() {
             <StatementHero
               label={probation ? `${year}년 수습 최저시급 (90%)` : `${year}년 최저시급`}
               value={formatWon(r.hourly)}
-              sub={`월 ${formatWon(r.monthly)} (${hoursLabel(r.monthlyHours)} 기준)`}
+              sub={`월 ${formatWon(r.monthly)} (${hoursExact ? "" : "약 "}${hoursLabel(r.monthlyHours)} 기준)`}
               stamp="최저"
             />
             <StatementSection title="기간별 최저 임금 (세전)">
@@ -127,7 +127,7 @@ export function MinimumWageCalculator() {
                 label="주급 (주휴 포함)"
                 note={
                   r.juhyuHours > 0
-                    ? `근로 ${formatNumber(weekly, 1)}시간 + 주휴 ${formatNumber(r.juhyuHours, 1)}시간`
+                    ? `근로 ${formatNumber(weekly, 1)}시간 + 주휴 ${formatNumber(r.juhyuHours, 2)}시간`
                     : `근로 ${formatNumber(weekly, 1)}시간, 주휴 없음`
                 }
                 value={formatWon(r.weekly)}
@@ -135,11 +135,9 @@ export function MinimumWageCalculator() {
               <StatementRow
                 label="월급"
                 note={
-                  isFullTime
-                    ? "209시간 기준 (고시)"
-                    : roundedUp
-                      ? `월 ${hoursLabel(exactHours)}을 ${hoursLabel(r.monthlyHours)}으로 올림`
-                      : `월 ${hoursLabel(r.monthlyHours)} 환산`
+                  r.monthly209
+                    ? `(40+8)시간 × 365÷7÷12 = ${formatNumber(monthlyHoursExact(weekly), 2)} → 고시 기준 209시간`
+                    : `시급 × (${formatNumber(weekly, 1)}+${formatNumber(r.juhyuHours, 2)})시간 × 365÷7÷12 (${hoursExact ? "=" : "≈"} ${hoursLabel(r.monthlyHours)})`
                 }
                 value={formatWon(r.monthly)}
                 emphasis
@@ -188,7 +186,10 @@ export function MinimumWageCalculator() {
               {year === 2027
                 ? "2027년 최저임금은 2026년 8월 5일 고용노동부가 확정 고시한 금액이에요. "
                 : "2026년 1월 1일부터 12월 31일까지 적용되는 금액이에요. "}
-              원 미만은 올려서 계산했어요.
+              {r.monthly209
+                ? "주 40시간은 최저임금 고시와 같이 월 209시간(208.57시간)으로 계산했어요. "
+                : "209시간은 주 40시간일 때 쓰는 고시 기준이라, 이 근무시간은 1시간 단위로 맞추지 않고 공식 그대로의 정확한 월 환산 시간으로 월급을 계산했어요. 시간은 소수 둘째 자리까지만 보여 드려요. "}
+              원 미만은 반올림했어요.
               {net ? " 세후 금액은 2026년 요율에 비과세 수당이 없다고 보고 낸 추정치예요." : ""}
               {year === 2027 && weekly >= JUHYU_MIN_WEEKLY_HOURS ? " 2027년 4대보험 요율은 아직 확정 전이라 세후 금액은 빼고 보여 드려요." : ""}
             </StatementFootnote>

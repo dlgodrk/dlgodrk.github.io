@@ -22,9 +22,10 @@ const exDeposit = depositInterest(ex.principal, 12, EX_RATE);
 const exDepositTax = interestTax(exDeposit, "general").total;
 // 조합 예탁금 3천만원 한도를 넘는 예: 월 200만원 · 3년 · 연 4% (1~15회차만 1.4%)
 const agriEx = calcSavings({ monthly: 2_000_000, months: 36, ratePct: EX_RATE, taxType: "agri" });
-
-/** Text cells in .data-table (which right-aligns and no-wraps by default). */
-const WRAP_CELL = { textAlign: "left", whiteSpace: "normal" } as const;
+// 같은 월 50만원 · 1년 · 연 4% 적금을 조합 예탁금으로 넣을 때 가입 시기·대상별 세금
+const exAgri = calcSavings({ monthly: EX_MONTHLY, months: 12, ratePct: EX_RATE, taxType: "agri" });
+const exAgri2026 = calcSavings({ monthly: EX_MONTHLY, months: 12, ratePct: EX_RATE, taxType: "agri2026" });
+const exAgri2027 = calcSavings({ monthly: EX_MONTHLY, months: 12, ratePct: EX_RATE, taxType: "agri2027" });
 
 export const metadata: Metadata = pageMetadata({
   title: "적금 이자 계산기 - 세후 만기 수령액 (단리·월복리)",
@@ -52,7 +53,7 @@ const FAQ: FaqItem[] = [
   },
   {
     q: "세금 안 내는 적금은 누가 가입할 수 있나요?",
-    a: "비과세종합저축은 2026년 신규 가입부터 만 65세 이상 기초연금 수급자, 장애인, 독립·국가유공자, 기초생활수급자 등이 1인 5천만원까지 가입할 수 있습니다. 소득 요건을 갖춘 만 19~34세 청년은 이자가 비과세인 청년미래적금(월 50만원 한도)을 이용할 수 있습니다. 농협·신협·새마을금고 등의 조합원(회원)은 농어민이거나 총급여 7천만원 이하 등 요건을 갖추면 예탁금 3천만원까지 농어촌특별세 1.4%만 냅니다.",
+    a: "비과세종합저축은 2026년 신규 가입부터 만 65세 이상 기초연금 수급자, 장애인, 독립·국가유공자, 기초생활수급자 등이 1인 5천만원까지 가입할 수 있습니다. 소득 요건을 갖춘 만 19~34세 청년은 이자가 비과세인 청년미래적금(월 50만원 한도)을 이용할 수 있습니다. 지역 농·축협, 수협, 산림조합, 신협, 새마을금고 예탁금은 2026~2028년에 가입해도 농협·수협·산림조합 조합원이거나 직전 연도 총급여 7천만원(종합소득 6천만원) 이하라면 3천만원까지 농어촌특별세 1.4%만 냅니다. 그 밖의 사람은 2026년 가입분 5.9%, 2027년 이후 가입분 9.5%입니다.",
   },
   {
     q: "적금과 예금 중 어느 쪽이 이자가 많나요?",
@@ -164,6 +165,7 @@ export default function SavingsPage() {
       <h2>적금 이자에 붙는 세금 ({RULE_YEAR}년)</h2>
       <div className="table-wrap">
         <table className="data-table">
+          <caption>조합 예탁금 세율은 가입한 해 기준, 1인 3천만원까지 (초과분은 일반과세)</caption>
           <thead>
             <tr>
               <th scope="col">구분</th>
@@ -175,26 +177,49 @@ export default function SavingsPage() {
             <tr>
               <td>일반과세</td>
               <td>15.4%</td>
-              <td style={WRAP_CELL}>이자소득세 14% + 지방소득세 1.4%. 대부분의 예·적금</td>
-            </tr>
-            <tr>
-              <td>세금우대</td>
-              <td>9.5%</td>
-              <td style={WRAP_CELL}>
-                소득세 9% + 농어촌특별세 0.5%. 옛 세금우대종합저축 세율로 2014년 말 신규 가입이 끝났습니다
+              <td className="text-cell">
+                이자소득세 14% + 지방소득세 1.4%. 대부분의 예·적금 (NH농협은행·Sh수협은행 포함)
               </td>
             </tr>
             <tr>
-              <td>조합 예탁금</td>
+              <td>
+                조합 예탁금
+                <br />
+                비과세 대상
+              </td>
               <td>1.4%</td>
-              <td style={WRAP_CELL}>
-                농협·수협·신협·새마을금고 등 예탁금 1인 3천만원까지 농어촌특별세만 냅니다. 초과분은 일반과세
+              <td className="text-cell">
+                소득세 없이 농어촌특별세만 냅니다. 2025년까지 가입분, 그리고 2026~2028년 가입분 중 농협·수협·산림조합
+                조합원이거나 소득 기준 이하인 사람
+              </td>
+            </tr>
+            <tr>
+              <td>
+                조합 예탁금
+                <br />
+                2026년 가입
+              </td>
+              <td>5.9%</td>
+              <td className="text-cell">
+                소득세 5% + 농어촌특별세 0.9%, 지방소득세 없음. 비과세 대상이 아닌 사람이 2026년에 가입
+              </td>
+            </tr>
+            <tr>
+              <td>
+                조합 예탁금 2027년~
+                <br />
+                옛 세금우대
+              </td>
+              <td>9.5%</td>
+              <td className="text-cell">
+                소득세 9% + 농어촌특별세 0.5%. 비과세 대상이 아닌 사람이 2027년 이후 가입한 조합 예탁금, 그리고 2014년 말
+                신규 가입이 끝난 세금우대종합저축
               </td>
             </tr>
             <tr>
               <td>비과세</td>
               <td>0%</td>
-              <td style={WRAP_CELL}>비과세종합저축, 청년도약계좌, 청년미래적금 등</td>
+              <td className="text-cell">비과세종합저축, 청년도약계좌, 청년미래적금 등</td>
             </tr>
           </tbody>
         </table>
@@ -213,21 +238,48 @@ export default function SavingsPage() {
         (소득세의 10%를 지방소득세로 특별징수)입니다.
       </p>
 
-      <h3>상호금융 예탁금 비과세 ({RULE_YEAR}년 변경)</h3>
+      <h3>상호금융 조합 예탁금 세율 ({RULE_YEAR}년 변경)</h3>
       <p>
-        농협·수협·산림조합의 조합원·준조합원과 신협·새마을금고 회원은 예탁금 1인 3천만원까지 이자소득세 없이 농어촌특별세
-        1.4%만 냅니다(
+        지역 농·축협, 수협, 산림조합, 신협, 새마을금고의 예탁금은 모든 조합을 합쳐 1인 3천만원까지 세금 특례가
+        있습니다(
         <a href="https://www.law.go.kr/법령/조세특례제한법/제89조의3" target="_blank" rel="noopener noreferrer">
           조세특례제한법 제89조의3
         </a>
-        ). 2025년 12월 법 개정으로 세율이 가입 시점에 따라 달라졌습니다. 2025년까지 가입한 예탁금은 기존대로 비과세이고,
-        2026~2028년 가입분은 농어민 조합원과 총급여 7천만원(종합소득 6천만원) 이하인 준조합원·회원만 비과세를 받습니다. 소득
-        기준을 넘는 준조합원·회원은 2026년 가입분부터 5%, 2027년 이후 가입분은 9%로 분리과세됩니다.
+        ). NH농협은행·Sh수협은행은 은행이라 특례가 없습니다. 2025년 12월 법 개정으로 세율은 이자를 받는 해가 아니라
+        예탁금에 가입한 해와 가입한 사람에 따라 정해집니다.
+      </p>
+      <ul>
+        <li>
+          <strong>2025년 12월 31일까지 가입</strong>: 누구나 소득세 비과세, 농어촌특별세 1.4%만 냅니다.
+        </li>
+        <li>
+          <strong>비과세 대상의 2026~2028년 가입</strong>: 농협·수협·산림조합의 조합원이거나, 직전 연도 총급여
+          7천만원(근로소득만 있는 경우 등) 또는 종합소득금액 6천만원 이하인 사람은 계속 1.4%입니다(
+          <a href="https://www.law.go.kr/법령/조세특례제한법/제88조의5" target="_blank" rel="noopener noreferrer">
+            같은 법 제88조의5
+          </a>
+          ). 이들도 2029년 가입분은 5.9%, 2030년 이후 가입분은 9.5%가 됩니다.
+        </li>
+        <li>
+          <strong>그 밖의 사람</strong>(농협·수협·산림조합 조합원이 아니면서 소득 기준을 넘는 준조합원, 신협 조합원,
+          새마을금고 회원 등): 2026년 가입분은 소득세 5% + 농어촌특별세 0.9% = 5.9%, 2027년 이후 가입분은 소득세 9% +
+          농어촌특별세 0.5% = 9.5%입니다. 지방소득세는 붙지 않습니다.
+        </li>
+      </ul>
+      <p>
+        농어촌특별세는 감면받은 소득세(14%와 적용 세율의 차이)의 10%라서 0.9%, 0.5%가 됩니다(
+        <a href="https://www.law.go.kr/법령/농어촌특별세법/제5조" target="_blank" rel="noopener noreferrer">
+          농어촌특별세법 제5조
+        </a>
+        ). 2026년에 가입한 적금은 2027년에 만기가 돼도 5.9%입니다. 월 50만원을 연 4% 단리로 1년 넣으면 세금은 일반과세{" "}
+        {formatNumber(ex.tax)}원, 비과세 대상 {formatNumber(exAgri.tax)}원, 2026년 가입 {formatNumber(exAgri2026.tax)}원,
+        2027년 이후 가입 {formatNumber(exAgri2027.tax)}원입니다. 9.5%는 옛 세금우대종합저축과 같은 세율이지만 별개
+        제도이고, 일정 요건의 농어민 등은 농어촌특별세도 면제될 수 있으니 가입할 조합에 적용 세율을 확인하세요.
       </p>
       <p>
         한도 3천만원은 원금 기준이라 적금 원금 합계가 이를 넘으면 넘는 부분의 이자는 일반과세 15.4%입니다. 계산기는 먼저
-        넣은 3천만원에 붙는 이자만 1.4%로 계산합니다. 예를 들어 월 200만원을 연 4% 단리로 3년 넣으면(원금{" "}
-        {koreanWon(agriEx.principal)}) 1~15회차 이자 {formatNumber(agriEx.agriSplit?.cappedInterest ?? 0)}원에는 1.4%,
+        넣은 3천만원에 붙는 이자만 조합 예탁금 세율로 계산합니다. 예를 들어 비과세 대상이 월 200만원을 연 4% 단리로 3년
+        넣으면(원금 {koreanWon(agriEx.principal)}) 1~15회차 이자 {formatNumber(agriEx.agriSplit?.cappedInterest ?? 0)}원에는 1.4%,
         16~36회차 이자 {formatNumber(agriEx.agriSplit?.excessInterest ?? 0)}원에는 15.4%가 붙어 세금은{" "}
         {formatNumber(agriEx.tax)}원입니다. 다른 조합 예탁금과 합산한 한도이므로 실제 적용은 가입할 곳에 확인하세요.
       </p>

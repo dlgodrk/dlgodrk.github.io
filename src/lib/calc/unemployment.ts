@@ -6,8 +6,18 @@
  *   2028-01-01 이후 이직은 법률 제21473호(2026-03-17)로 이직 전 1년간 보수 기준으로 바뀌지만,
  *   그 전 이직은 부칙 제3조에 따라 종전 규정을 적용합니다. 이 계산기는 2027년 이직까지만 받습니다.
  * 구직급여일액 = min(기초일액, 상한 기초일액) × 60%
- * 하한 = 이직일 당시 시간급 최저임금 × 1일 소정근로시간(최대 8) × 80% — 하한이 상한보다 우선
+ * 하한 = 이직일 당시 시간급 최저임금 × 이직 전 1일 소정근로시간 × 80% — 하한이 상한보다 우선
  * 총액 = 구직급여일액 × 소정급여일수(120~270일)
+ *
+ * 이직 전 1일 소정근로시간 (고용보험법 제45조④ 후단 → 시행규칙 제91조의2①, 고용노동부령 제370호
+ * 2022-12-09, 2023-01-01 이후 이직부터; 현행 제479호 2026-09-18까지 그대로):
+ *   1. 일 단위로 정한 경우(주 5·6일 매일 같은 시간): 그 시간
+ *   2. 주 단위: (주 소정근로시간 + 그 기간 유급휴일 시간) ÷ 48 × 8
+ *   3. 월 단위: (월 소정근로시간 + 그 기간 유급휴일 시간) ÷ 209 × 8
+ *   4. 주마다 다른 경우: (이직 전 4주 소정근로시간 + 그 기간 유급휴일 시간) ÷ 28
+ *   then 급여기초임금일액 산정규정(고용노동부예규 제221호, 2023-12-01) 제3조: 소수점 이하는 올림해 정수로,
+ *   8시간 이상은 8시간. ('3시간 이하는 4시간' 규정은 2023-12-01 이후 이직부터 삭제.)
+ *   Text checked 2026-10-09 at law.go.kr (admRulSeq=2100000232090) and the 시행규칙 현행본.
  *
  * Rounding: 기초일액과 구직급여일액 모두 원 미만 절사. No official rounding rule was found;
  * every 하한 value with whole hours is an exact won amount, so this only matters between the limits.
@@ -19,15 +29,31 @@ import { addDays, addMonths, compareYMD, diffDays, type YMD } from "@/lib/date";
 export const FIRST_YEAR = 2025;
 export const LAST_YEAR = 2027;
 /**
- * 이 해 1월 1일 이후 이직부터 기초일액이 '이직 전 1년간 보수' 기준으로 바뀝니다
- * (고용보험법 제45조 개정, 법률 제21473호 2026-03-17 공포, 부칙 제1조·제3조).
+ * 이 해 1월 1일 이후 이직부터 기초일액이 '이직 전 1년간 월 보수 합계 ÷ 산정기간 총 일수'로 바뀝니다
+ * (고용보험법 제45조① 개정, 법률 제21473호 2026-03-17 공포, 부칙 제1조 시행일·제3조 경과조치).
+ * 최저기초일액을 정한 제45조④는 이 개정에서 바뀌지 않았습니다.
  */
 export const ANNUAL_BASE_RULE_YEAR = 2028;
+/** 법률 제21473호 (2026-03-17 공포). */
+export const ANNUAL_BASE_LAW_NO = "제21473호";
 
 export const BENEFIT_RATE_PCT = 60;
 export const FLOOR_RATE_PCT = 80;
-/** 하한 계산에 쓰는 1일 소정근로시간 상한 (2023-12-01부터 하한 4시간 규정 폐지, 실제 시간 적용). */
+/**
+ * 하한 계산에 쓰는 1일 소정근로시간 상한 (급여기초임금일액 산정규정 제3조③).
+ * 2023-12-01 이후 이직부터 '3시간 이하는 4시간' 하한은 없어져 실제 시간을 씁니다.
+ */
 export const MAX_FLOOR_HOURS = 8;
+/** 시행규칙 제91조의2①2호: 주 단위면 (주 소정 + 유급휴일) ÷ 48 × 8. */
+export const WEEK_BASIS_HOURS = 48;
+/** 시행규칙 제91조의2①3호: 월 단위면 (월 소정 + 유급휴일) ÷ 209 × 8. */
+export const MONTH_BASIS_HOURS = 209;
+/** 시행규칙 제91조의2①4호: 주마다 다르면 (이직 전 4주 소정 + 유급휴일) ÷ 28. */
+export const FOUR_WEEK_DIVISOR = 28;
+/** 주휴일을 주는 최소 1주 소정근로시간 (근로기준법 제18조③). */
+export const JUHYU_MIN_WEEKLY_HOURS = 15;
+/** 주휴시간 비례 계산의 기준이 되는 주 40시간 (근로기준법 제50조①, 시행령 별표2). */
+const FULL_WEEK_HOURS = 40;
 /** 실업 신고일부터 7일은 대기기간이라 지급하지 않아요 (고용보험법 제49조). */
 export const WAITING_DAYS = 7;
 /** 수급기간: 이직일 다음 날부터 12개월 (고용보험법 제48조). */
@@ -35,7 +61,10 @@ export const RECEIVE_MONTHS = 12;
 /** 피보험단위기간 요건: 이직일 이전 18개월 중 180일 (고용보험법 제40조). */
 export const REQUIRED_INSURED_DAYS = 180;
 
-/** 2027 정부안(2026-09-01 고용보험위원회): 상한 = 하한 × 103%, 주 6일분 지급. 미확정. */
+/**
+ * 2027 정부안(2026-09-01 고용보험위원회): 상한 = 하한 × 103%, 주 6일분 지급, 실업급여 보험료율 각 0.9% → 1.0%.
+ * 2026-10-09 현재 법령 개정 전이라 미확정 (법률 제21473호와 달리 공포된 내용이 아님).
+ */
 export const PROPOSAL_CAP_RATIO_PCT = 103;
 
 export type InsuredPeriod = "0" | "1" | "3" | "5" | "10";
@@ -98,13 +127,77 @@ export function yearRule(year: number): YearRule | null {
   };
 }
 
-/** 1일 소정근로시간을 하한 계산용으로 정리 (1~8시간 정수). */
+/**
+ * 하한 계산용 1일 소정근로시간 (급여기초임금일액 산정규정 제3조②③):
+ * 시행규칙 제91조의2①로 구한 평균이 소수면 올림해 정수로, 8시간 이상은 8시간.
+ * 4.8 → 5, 3.43 → 4, 10 → 8. 0 이하이거나 숫자가 아니면 NaN.
+ */
 export function floorHours(hours: number): number {
-  if (!Number.isFinite(hours)) return MAX_FLOOR_HOURS;
-  return Math.min(MAX_FLOOR_HOURS, Math.max(1, Math.round(hours)));
+  if (!Number.isFinite(hours) || hours <= 0) return NaN;
+  // Strip float noise (e.g. 4.000000000000001) before rounding up.
+  const clean = Math.round(hours * 1e6) / 1e6;
+  return Math.min(MAX_FLOOR_HOURS, Math.ceil(clean));
 }
 
-/** 최저기초일액 = 시간급 최저임금 × 1일 소정근로시간(최대 8). */
+/**
+ * 1주 주휴시간: 1주 소정근로시간이 15시간 이상이면 min(주 소정, 40) ÷ 40 × 8 (근로기준법 제18조③·제55조,
+ * 시행령 별표2). 주 24시간 → 4.8시간, 주 40시간 → 8시간, 주 14시간 → 0.
+ */
+export function weeklyPaidHolidayHours(weeklyHours: number): number {
+  if (!(weeklyHours >= JUHYU_MIN_WEEKLY_HOURS)) return 0;
+  return (Math.min(weeklyHours, FULL_WEEK_HOURS) * 8) / FULL_WEEK_HOURS;
+}
+
+/** 이직 전 4주의 주휴시간 합계: 4주 평균 1주 소정근로시간으로 판단해 4주분 (4주 80시간 → 16시간). */
+export function fourWeekPaidHolidayHours(totalHours: number): number {
+  return 4 * weeklyPaidHolidayHours(totalHours / 4);
+}
+
+/** 근로계약에서 소정근로시간을 정한 단위 (시행규칙 제91조의2①1·2·4호). */
+export type HoursBasis = "day" | "week" | "fourWeek";
+
+export type DailyHours = {
+  basis: HoursBasis;
+  /** 입력한 소정근로시간: 하루 / 1주 / 이직 전 4주 합계 */
+  scheduled: number;
+  /** 더한 유급휴일(주휴) 시간 */
+  paidHoliday: number;
+  /** 이직 전 1일 평균 소정근로시간 (올림 전) */
+  average: number;
+  /** 하한 계산에 쓰는 시간 (올림, 최대 8) */
+  hours: number;
+};
+
+/**
+ * 이직 전 1일 소정근로시간 (시행규칙 제91조의2① + 산정규정 제3조).
+ * 유급휴일은 주휴일만 넣습니다(주 15시간 이상일 때).
+ * - day: 그 시간 (주 5·6일 매일 같은 시간으로 정한 경우)
+ * - week: (주 소정 + 주휴) ÷ 48 × 8. 주 3일 × 8시간 = 24 → (24 + 4.8) ÷ 48 × 8 = 4.8 → 5시간
+ * - fourWeek: (4주 소정 + 4주 주휴) ÷ 28. 4주 80시간 → (80 + 16) ÷ 28 = 3.43 → 4시간
+ */
+export function dailyScheduledHours(basis: HoursBasis, scheduled: number): DailyHours | null {
+  if (!Number.isFinite(scheduled) || scheduled <= 0) return null;
+  let paidHoliday = 0;
+  let average = scheduled;
+  if (basis === "week") {
+    paidHoliday = weeklyPaidHolidayHours(scheduled);
+    average = ((scheduled + paidHoliday) * 8) / WEEK_BASIS_HOURS;
+  } else if (basis === "fourWeek") {
+    paidHoliday = fourWeekPaidHolidayHours(scheduled);
+    average = (scheduled + paidHoliday) / FOUR_WEEK_DIVISOR;
+  }
+  return { basis, scheduled, paidHoliday, average, hours: floorHours(average) };
+}
+
+/**
+ * 월 단위로 정한 경우 (시행규칙 제91조의2①3호): (월 소정 + 그 달 유급휴일 시간) ÷ 209 × 8 (올림 전).
+ * 유급휴일 시간은 계약마다 달라 직접 넣습니다. 월 174 + 주휴 35 = 209 → 8시간.
+ */
+export function monthlyAverageHours(monthlyHours: number, paidHolidayHours: number): number {
+  return ((monthlyHours + paidHolidayHours) * 8) / MONTH_BASIS_HOURS;
+}
+
+/** 최저기초일액 = 시간급 최저임금 × 이직 전 1일 소정근로시간(올림, 최대 8). */
 export function minimumBase(minWage: number, hours: number): number {
   return minWage * floorHours(hours);
 }
@@ -164,7 +257,7 @@ export type UnemploymentInput = {
   separation: YMD;
   /** 퇴직 전 3개월의 월 평균 세전 급여 (원) */
   monthlyWage: number;
-  /** 1일 소정근로시간 (1~8) */
+  /** 이직 전 1일 (평균) 소정근로시간. 소수면 올림, 8시간 넘으면 8시간 (dailyScheduledHours().average) */
   hours: number;
   period: InsuredPeriod;
   /** 이직일 기준 만 50세 이상 또는 장애인 */
@@ -186,6 +279,8 @@ export type UnemploymentResult = {
   appliedBase: number;
   /** 기초일액 × 60% (원 미만 절사) */
   computedDaily: number;
+  /** 하한 계산에 쓴 1일 소정근로시간 (올림, 최대 8) */
+  hours: number;
   /** 하한(최저구직급여일액) */
   floor: number;
   /** 하한이 적용됐는지 (60% 금액이 하한보다 낮을 때) */
@@ -221,12 +316,20 @@ export function dailyBenefit(baseDaily: number, rule: YearRule, hours: number) {
   const computedDaily = Math.floor((appliedBase * BENEFIT_RATE_PCT) / 100);
   const floor = dailyFloor(rule.minWage, hours);
   const floorApplied = computedDaily < floor;
-  return { capApplied, appliedBase, computedDaily, floor, floorApplied, daily: Math.max(computedDaily, floor) };
+  return {
+    capApplied,
+    appliedBase,
+    computedDaily,
+    hours: floorHours(hours),
+    floor,
+    floorApplied,
+    daily: Math.max(computedDaily, floor),
+  };
 }
 
 export function calcUnemployment(input: UnemploymentInput): UnemploymentResult | null {
   const rule = yearRule(input.separation.y);
-  if (!rule || !isValidWage(input.monthlyWage)) return null;
+  if (!rule || !isValidWage(input.monthlyWage) || !Number.isFinite(floorHours(input.hours))) return null;
 
   const wp = wagePeriod(input.separation);
   const totalWage = Math.round(input.monthlyWage) * 3;

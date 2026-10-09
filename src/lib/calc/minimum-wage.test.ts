@@ -1,13 +1,16 @@
 import { describe, expect, it } from "vitest";
 import { MINIMUM_WAGE } from "@/lib/rates/labor";
+import { calcHourly, payForWeeklyHours, scheduleForHours } from "./hourly-wage";
 import {
   calcMinimumWage,
   hourlyMinimum,
   INCLUSION_SCHEDULE,
+  isMonthly209,
   juhyuHours,
   MINIMUM_WAGE_HISTORY,
   monthlyHours,
   monthlyHoursExact,
+  monthlyPayHours,
   nearestSalaryManwon,
   netMonthly2026,
   WEEKLY_HOURS_TABLE,
@@ -78,46 +81,97 @@ describe("minimum-wage: part-time hours", () => {
     expect(juhyuHours(40)).toBe(8);
     expect(juhyuHours(NaN)).toBe(0);
   });
-  it("월 환산 시간 = (주 소정 + 주휴) × 365/7/12, 시간 단위 올림", () => {
-    // labor-2026.md: "(weeklyHrs + weeklyHolidayHrs) * 365/7/12, rounded UP to an integer"
+  // 월 환산 시간: 최저임금법 시행령 제5조①3 = (1주 소정 + 유급 주휴) × 1년 평균 주 수 ÷ 12, no rounding rule
+  // (https://www.law.go.kr/법령/최저임금법시행령/제5조). Only 40h + 8h uses the 고시 209시간
+  // (minimumwage.go.kr: 10,320 × 209 = 2,156,880원). Fact-check docs/research/verifier-corrections.md item 5:
+  // part-time hours must not be ceiled — this replaces labor-2026.md's "rounded UP to an integer".
+  it("월 환산 시간: 주 40시간만 고시 기준 209시간", () => {
     expect(monthlyHoursExact(40)).toBeCloseTo(208.571, 3);
     expect(monthlyHours(40)).toBe(209);
-    expect(monthlyHoursExact(20)).toBeCloseTo(104.286, 3);
-    expect(monthlyHours(20)).toBe(105);
-    expect(monthlyHours(15)).toBe(79); // 78.21 → 79
-    expect(monthlyHours(25)).toBe(131); // 130.36 → 131
-    expect(monthlyHours(30)).toBe(157); // 156.43 → 157
-    expect(monthlyHours(35)).toBe(183); // 182.5 → 183
-    expect(monthlyHours(10)).toBe(44); // 주휴 없음: 10 × 365/84 = 43.45 → 44
-    expect(monthlyHours(28)).toBe(146); // 33.6 × 365/84 = 146 exactly (no float noise → no extra hour)
-    expect(monthlyHours(0)).toBe(0);
+    expect(isMonthly209(40)).toBe(true);
+    expect(isMonthly209(39.9)).toBe(false);
+    expect(isMonthly209(0)).toBe(false);
+    expect(calcMinimumWage({ year: 2026, ...FULL }).monthly209).toBe(true);
   });
-  it("표시하는 최저 월급은 법정 기준(시급 × 정확한 월 환산 시간) 이상 (최저임금법 시행령 제5조①3)", () => {
+  it("단시간 월 환산 시간은 소수 둘째 자리 (올림·정수 반올림 안 함)", () => {
+    expect(monthlyHoursExact(20)).toBeCloseTo(104.286, 3);
+    expect(monthlyHours(20)).toBe(104.29); // (20 + 4) × 365/84, not 105 (올림) / 104 / 104.5 (209 ÷ 2)
+    expect(monthlyHours(15)).toBe(78.21); // (15 + 3) × 365/84, not 79
+    expect(monthlyHours(25)).toBe(130.36);
+    expect(monthlyHours(30)).toBe(156.43);
+    expect(monthlyHours(35)).toBe(182.5);
+    expect(monthlyHours(10)).toBe(43.45); // 주휴 없음: 10 × 365/84
+    expect(monthlyHours(14)).toBe(60.83);
+    expect(monthlyHours(28)).toBe(146); // 33.6 × 365/84 = 146 exactly
+    expect(monthlyHours(0)).toBe(0);
+    expect(monthlyHours(NaN)).toBe(0);
+    expect(calcMinimumWage({ year: 2026, weeklyHours: 20, dailyHours: 4 }).monthly209).toBe(false);
+  });
+  it("월급 = 시급 × 정확한 월 환산 시간 (표시는 0.01h), 원 단위 반올림", () => {
     for (const year of [2026, 2027] as const) {
       for (const probation of [false, true]) {
         for (let tenths = 1; tenths <= 400; tenths++) {
           const w = tenths / 10;
           const r = calcMinimumWage({ year, weeklyHours: w, dailyHours: 8, probation });
-          const exact = r.hourly * monthlyHoursExact(w);
-          expect(r.monthly).toBeGreaterThanOrEqual(exact - 1e-6);
-          // 올림은 1시간 미만만 더합니다.
-          expect(r.monthly).toBeLessThan(exact + r.hourly + 1);
+          expect(r.monthly209).toBe(w === 40);
+          if (w !== 40) {
+            expect(r.monthlyHours).toBe(Math.round(monthlyHoursExact(w) * 100) / 100);
+            expect(r.monthlyPayHours).toBe(monthlyHoursExact(w));
+          }
+          // Integer arithmetic: 시급 × (주 소정 + 주휴, 0.01h 단위) × 365 / 8400, 원 단위 반올림 (209시간은 × 209).
+          const hundredths = Math.round((w + juhyuHours(w)) * 100);
+          const expected =
+            w === 40 ? r.hourly * 209 : Math.floor((r.hourly * hundredths * 365 + 4_200) / 8_400);
+          expect(r.monthly).toBe(expected);
+          expect(Math.abs(r.monthly - r.hourly * r.monthlyPayHours)).toBeLessThanOrEqual(0.5 + 1e-6);
         }
       }
     }
   });
-  it("주 20시간 2026: 주급 247,680원 (주휴 41,280원), 월 1,083,600원", () => {
+  it("주 10·15·20·30·40시간 회귀 (2026·2027): 정확한 시간으로 계산", () => {
+    const at = (year: 2026 | 2027, w: number) => calcMinimumWage({ year, weeklyHours: w, dailyHours: Math.min(8, w / 5) });
+    // 주 10시간 (주휴 없음): 10 × 365/84 = 43.4523…h → 448,428.57 / 464,940.48 (× 43.45 표시값이면 448,404)
+    expect(at(2026, 10).monthly).toBe(448_429);
+    expect(at(2027, 10).monthly).toBe(464_940);
+    // 주 15시간: 18 × 365/84 = 78.2142…h → 807,171.43 / 836,892.86 (× 78.21이면 807,127, 79시간 올림이면 815,280)
+    expect(at(2026, 15).monthly).toBe(807_171);
+    expect(at(2027, 15).monthly).toBe(836_893);
+    // 주 20시간: 24 × 365/84 = 104.2857…h → 1,076,228.57 / 1,115,857.14 (× 104.29이면 1,076,273, 105시간 올림이면 1,083,600)
+    expect(at(2026, 20).monthly).toBe(1_076_229);
+    expect(at(2027, 20).monthly).toBe(1_115_857);
+    // 주 30시간: 36 × 365/84 = 156.4285…h → 1,614,342.86 / 1,673,785.71 (× 156.43이면 1,614,358)
+    expect(at(2026, 30).monthly).toBe(1_614_343);
+    expect(at(2027, 30).monthly).toBe(1_673_786);
+    // 주 40시간: 고시 209시간
+    expect(at(2026, 40).monthly).toBe(2_156_880);
+    expect(at(2027, 40).monthly).toBe(2_236_300);
+  });
+  it("주 20시간 2026: 주급 247,680원 (주휴 41,280원), 월 104.29시간 표시, 1,076,229원", () => {
     const r = calcMinimumWage({ year: 2026, weeklyHours: 20, dailyHours: 4 });
     expect(r.juhyuPay).toBe(41_280); // labor-2026.md: 주 20h → 41,280원
     expect(r.weekly).toBe(247_680);
     expect(r.daily).toBe(41_280);
-    expect(r.monthly).toBe(1_083_600); // 10,320 × 105 (정확한 기준 1,076,228.6원 이상)
-    expect(calcMinimumWage({ year: 2027, weeklyHours: 20, dailyHours: 4 }).monthly).toBe(1_123_500); // 10,700 × 105
+    expect(r.monthlyHours).toBe(104.29);
+    expect(r.monthlyPayHours).toBeCloseTo(104.285714, 6);
+    expect(monthlyPayHours(20)).toBe(r.monthlyPayHours);
+    expect(r.monthly).toBe(1_076_229);
+    expect(r.annual).toBe(1_076_229 * 12);
   });
-  it("주 10·15·30시간 2026 월급", () => {
-    expect(calcMinimumWage({ year: 2026, weeklyHours: 10, dailyHours: 2 }).monthly).toBe(454_080); // 10,320 × 44
-    expect(calcMinimumWage({ year: 2026, weeklyHours: 15, dailyHours: 3 }).monthly).toBe(815_280); // 10,320 × 79
-    expect(calcMinimumWage({ year: 2026, weeklyHours: 30, dailyHours: 6 }).monthly).toBe(1_620_240); // 10,320 × 157
+  it("주 14·25·28·35시간 2026 월급", () => {
+    expect(calcMinimumWage({ year: 2026, weeklyHours: 14, dailyHours: 7 }).monthly).toBe(627_800); // 14 × 365/84 × 10,320 = 627,800
+    expect(calcMinimumWage({ year: 2026, weeklyHours: 25, dailyHours: 5 }).monthly).toBe(1_345_286); // 1,345,285.71
+    expect(calcMinimumWage({ year: 2026, weeklyHours: 28, dailyHours: 7 }).monthly).toBe(1_506_720); // 146h exactly
+    expect(calcMinimumWage({ year: 2026, weeklyHours: 35, dailyHours: 7 }).monthly).toBe(1_883_400); // 182.5h exactly
+    expect(monthlyPayHours(40)).toBe(209);
+    expect(monthlyPayHours(0)).toBe(0);
+    expect(monthlyPayHours(NaN)).toBe(0);
+  });
+  it("수습 단시간도 같은 시간 기준: 2026 주 20시간 9,288 × 104.2857…", () => {
+    const r = calcMinimumWage({ year: 2026, weeklyHours: 20, dailyHours: 4, probation: true });
+    expect(r.monthly).toBe(968_606); // 968,605.71
+    expect(r.firstYearAnnual).toBe(968_606 * 3 + 1_076_229 * 9);
+    // 2027 수습 9,630 × 104.2857… = 1,004,271.43
+    expect(calcMinimumWage({ year: 2027, weeklyHours: 20, dailyHours: 4, probation: true }).monthly).toBe(1_004_271);
   });
   it("주 15시간 2026 주휴 30,960원, 주 14시간은 주휴 없음", () => {
     expect(calcMinimumWage({ year: 2026, weeklyHours: 15, dailyHours: 3 }).juhyuPay).toBe(30_960);
@@ -129,9 +183,11 @@ describe("minimum-wage: part-time hours", () => {
     expect(calcMinimumWage({ year: 2027, weeklyHours: 15, dailyHours: 3 }).juhyuPay).toBe(32_100);
     expect(calcMinimumWage({ year: 2027, weeklyHours: 20, dailyHours: 4 }).juhyuPay).toBe(42_800);
   });
-  it("원 미만은 올림 (최저임금 이상 지급)", () => {
-    // 수습 9,288 × 3.3시간 = 30,650.4 → 30,651
-    expect(calcMinimumWage({ year: 2026, weeklyHours: 16.5, dailyHours: 3.3, probation: true }).daily).toBe(30_651);
+  it("원 미만은 반올림 (시급·주휴 계산기 hourly-wage와 같은 방식)", () => {
+    // 수습 9,288 × 3.3시간 = 30,650.4 → 30,650
+    expect(calcMinimumWage({ year: 2026, weeklyHours: 16.5, dailyHours: 3.3, probation: true }).daily).toBe(30_650);
+    // 주 15.1시간 주휴 3.02시간 × 10,320 = 31,166.4 → 31,166 (hourly-wage juhyuPay와 같음)
+    expect(calcMinimumWage({ year: 2026, weeklyHours: 15.1, dailyHours: 3 }).juhyuPay).toBe(31_166);
   });
   it("1일 8시간 초과분은 연장근로: 5인 이상은 50% 가산 (근로기준법 제50조②·제56조①)", () => {
     const r = calcMinimumWage({ year: 2026, weeklyHours: 40, dailyHours: 10 });
@@ -147,6 +203,64 @@ describe("minimum-wage: part-time hours", () => {
   it("monthly grows with hours", () => {
     const m = WEEKLY_HOURS_TABLE.map((w) => calcMinimumWage({ year: 2026, weeklyHours: w, dailyHours: 8 }).monthly);
     expect([...m].sort((a, b) => a - b)).toEqual(m);
+  });
+});
+
+describe("minimum-wage agrees with hourly-wage (같은 근무조건 → 같은 금액)", () => {
+  // Monthly pay on the exact (unrounded) hours, 원 단위 반올림; hours shown to 0.01h.
+  // Values cross-checked with BigInt: round(시급 × (주 소정 + 주휴) × 365 / 84), 40h = 시급 × 209.
+  const EXPECTED: Record<2026 | 2027, Record<number, { hours: number; monthly: number }>> = {
+    2026: {
+      10: { hours: 43.45, monthly: 448_429 },
+      15: { hours: 78.21, monthly: 807_171 },
+      20: { hours: 104.29, monthly: 1_076_229 },
+      30: { hours: 156.43, monthly: 1_614_343 },
+      40: { hours: 209, monthly: 2_156_880 },
+    },
+    2027: {
+      10: { hours: 43.45, monthly: 464_940 },
+      15: { hours: 78.21, monthly: 836_893 },
+      20: { hours: 104.29, monthly: 1_115_857 },
+      30: { hours: 156.43, monthly: 1_673_786 },
+      40: { hours: 209, monthly: 2_236_300 },
+    },
+  };
+  for (const year of [2026, 2027] as const) {
+    for (const h of [10, 15, 20, 30, 40]) {
+      it(`${year}년 주 ${h}시간`, () => {
+        const wage = MINIMUM_WAGE[year];
+        const m = calcMinimumWage({ year, weeklyHours: h, dailyHours: 8 });
+        const p = payForWeeklyHours(h, wage);
+        const s = scheduleForHours(h);
+        const c = calcHourly({ wage, dailyHours: s.daily, days: s.days });
+        expect(m.monthlyHours).toBe(p.monthlyHours);
+        expect(m.monthlyHours).toBe(c.monthlyHours);
+        expect(m.monthlyPayHours).toBe(p.monthlyPayHours);
+        expect(m.monthlyPayHours).toBe(c.monthlyPayHours);
+        expect(m.monthly209).toBe(p.monthly209);
+        expect(m.monthly).toBe(p.monthlyGross);
+        expect(m.monthly).toBe(c.monthlyGross);
+        expect(m.juhyuPay).toBe(p.juhyuPay);
+        expect(m.weekly).toBe(p.weeklyTotal);
+        expect(m.monthlyHours).toBe(EXPECTED[year][h].hours);
+        expect(m.monthly).toBe(EXPECTED[year][h].monthly);
+      });
+    }
+  }
+  it("every 0.1h from 0.1 to 40h, both years, with and without 수습", () => {
+    for (const year of [2026, 2027] as const) {
+      for (const probation of [false, true]) {
+        for (let tenths = 1; tenths <= 400; tenths++) {
+          const w = tenths / 10;
+          const m = calcMinimumWage({ year, weeklyHours: w, dailyHours: 8, probation });
+          const p = payForWeeklyHours(w, m.hourly);
+          expect(m.monthlyHours).toBe(p.monthlyHours);
+          expect(m.monthlyPayHours).toBe(p.monthlyPayHours);
+          expect(m.monthly).toBe(p.monthlyGross);
+          expect(m.weekly).toBe(p.weeklyTotal);
+        }
+      }
+    }
   });
 });
 

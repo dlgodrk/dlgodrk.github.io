@@ -135,6 +135,7 @@ body {
 .field {
   display: grid;
   gap: 0.5rem;
+  align-content: start;
 }
 .field-label {
   font-weight: 600;
@@ -298,7 +299,11 @@ input[type="date"].field-input {
   background: var(--sheet);
   cursor: pointer;
 }
-.btn-ghost:hover {
+.btn-ghost:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.btn-ghost:hover:not(:disabled) {
   color: var(--ink);
   border-color: var(--muted);
 }
@@ -449,6 +454,12 @@ input[type="date"].field-input {
   color: var(--muted);
 }
 
+/* Grid/flex children holding wide tables must be allowed to shrink below the table width. */
+.calc-grid > *,
+.grid > section {
+  min-width: 0;
+}
+
 /* ---------- long-form content ---------- */
 .prose-ko {
   max-width: 48rem;
@@ -525,6 +536,7 @@ input[type="date"].field-input {
 
 /* Data tables inside prose and on programmatic pages */
 .table-wrap {
+  max-width: 100%;
   overflow-x: auto;
   border: 1px solid var(--rule);
   border-radius: 8px;

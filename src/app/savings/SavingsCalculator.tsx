@@ -6,10 +6,12 @@ import { Statement, StatementFootnote, StatementHero, StatementRow, StatementSec
 import { formatNumber, formatPercent, formatWon, koreanWon } from "@/lib/format";
 import {
   AGRI_EXEMPT_CAP,
+  AGRI_TAX_TYPES,
   calcSavings,
   DEFAULT_MONTHLY,
   DEFAULT_MONTHS,
   DEFAULT_RATE,
+  isAgriTax,
   isTaxType,
   isValidSavingsInput,
   MAX_MONTHLY,
@@ -17,18 +19,44 @@ import {
   MAX_RATE,
   PERIOD_PRESETS,
   periodLabel,
-  TAX_TYPE_ORDER,
   TAX_TYPES,
+  type AgriTaxType,
   type InterestType,
   type TaxType,
 } from "@/lib/calc/savings";
 import { useUrlState } from "@/lib/useUrlState";
 
-const TAX_HINTS: Record<TaxType, string> = {
-  general: "이자소득세 14%와 지방소득세 1.4%를 떼요. 대부분의 적금이 여기에 해당해요.",
-  preferential: "소득세 9%와 농어촌특별세 0.5%예요. 예전 세금우대종합저축 세율로, 지금은 신규 가입이 없어요.",
-  agri: "농협·수협·신협·새마을금고 예탁금 3천만원까지는 농어촌특별세 1.4%만 내요(농어민 조합원이나 총급여 7천만원 이하 등 요건). 소득 기준을 넘는 준조합원·회원은 2026년 가입분부터 5% 분리과세예요.",
+/** Top-level 과세 구분 buttons; the three 조합 예탁금 rates share one button and get a second selector. */
+type TopTax = "general" | "preferential" | "agri" | "exempt";
+const TOP_ORDER: TopTax[] = ["general", "preferential", "agri", "exempt"];
+
+const TOP_SHORT: Record<TopTax, string> = {
+  general: "일반",
+  preferential: "세금우대",
+  agri: "조합",
+  exempt: "비과세",
+};
+
+const TOP_HINTS: Record<TopTax, string> = {
+  general: "이자소득세 14%와 지방소득세 1.4%를 떼요. 대부분의 적금이 여기에 해당해요. NH농협은행·Sh수협은행 적금도 일반과세예요.",
+  preferential:
+    "소득세 9%와 농어촌특별세 0.5%예요. 2014년까지 가입한 세금우대종합저축 세율이라 지금은 새로 가입할 수 없어요. 2027년 이후 가입하는 조합 예탁금도 9.5%인데, 그때는 ‘조합’에서 골라야 3천만원 한도까지 반영돼요.",
+  agri: "지역 농·축협, 수협, 산림조합, 신협, 새마을금고 예탁금은 1인당 3천만원까지 세금 특례가 있어요. 세율은 가입한 해와 조합원 여부·소득으로 정해져요.",
   exempt: "비과세종합저축, 청년도약계좌·청년미래적금처럼 이자에 세금이 붙지 않는 경우예요.",
+};
+
+const AGRI_SHORT: Record<AgriTaxType, string> = {
+  agri: "비과세 대상",
+  agri2026: "2026년 가입",
+  agri2027: "2027년 이후",
+};
+
+const AGRI_HINTS: Record<AgriTaxType, string> = {
+  agri: "2025년까지 가입했거나, 2026~2028년에 가입했어도 농협·수협·산림조합 조합원 또는 직전 연도 총급여 7천만원(종합소득 6천만원) 이하라면 소득세 없이 농어촌특별세 1.4%만 내요.",
+  agri2026:
+    "농협·수협·산림조합 조합원이 아니면서 소득 기준을 넘는 사람이 2026년에 가입하면 소득세 5%와 농어촌특별세 0.9%를 내요. 지방소득세는 없고, 만기가 2027년 이후여도 가입한 해 세율 그대로예요.",
+  agri2027:
+    "농협·수협·산림조합 조합원이 아니면서 소득 기준을 넘는 사람이 2027년 이후 가입하면 소득세 9%와 농어촌특별세 0.5%예요(지방소득세 없음). 비과세 대상도 2029년 가입분은 5.9%, 2030년 이후 가입분은 9.5%예요.",
 };
 
 /** Truncate to an integer, keeping NaN (empty box) as is. */
@@ -36,12 +64,15 @@ function toInt(n: number): number {
   return Number.isFinite(n) ? Math.trunc(n) : n;
 }
 
-const TAX_SHORT: Record<TaxType, string> = {
-  general: "일반",
-  preferential: "세금우대",
-  agri: "조합",
-  exempt: "비과세",
-};
+/** Two-line segment label: name on top, rate below. */
+function RateLabel({ name, rate }: { name: string; rate: string }) {
+  return (
+    <span className="block leading-tight">
+      <span className="block">{name}</span>
+      <span className="block text-[0.8125rem] opacity-75 tabular">{rate}</span>
+    </span>
+  );
+}
 
 export function SavingsCalculator({ initialMonthly = DEFAULT_MONTHLY }: { initialMonthly?: number }) {
   // URL keys: m = 월 납입액(원), n = 기간(개월), r = 연 이자율(%), t = 이자 방식, x = 과세
@@ -57,6 +88,9 @@ export function SavingsCalculator({ initialMonthly = DEFAULT_MONTHLY }: { initia
   const months = toInt(s.n);
   const interestType: InterestType = s.t === "monthly" ? "monthly" : "simple";
   const taxType: TaxType = isTaxType(s.x) ? s.x : "general";
+  const agriType: AgriTaxType | null = isAgriTax(taxType) ? taxType : null;
+  const topTax: TopTax = isAgriTax(taxType) ? "agri" : taxType;
+  const taxInfo = TAX_TYPES[taxType];
   const valid = isValidSavingsInput(monthly, months, s.r);
   const res = valid ? calcSavings({ monthly, months, ratePct: s.r, interestType, taxType }) : null;
   const typeLabel = interestType === "monthly" ? "월복리" : "단리";
@@ -105,21 +139,28 @@ export function SavingsCalculator({ initialMonthly = DEFAULT_MONTHLY }: { initia
             ]}
             hint="은행 정기적금은 대부분 단리예요. 상품 설명서에 ‘월복리’라고 적혀 있을 때만 바꾸세요."
           />
-          <SegmentedField<TaxType>
+          <SegmentedField<TopTax>
             label="과세 구분"
-            value={taxType}
-            onChange={(x) => set({ x })}
-            options={TAX_TYPE_ORDER.map((t) => ({
+            value={topTax}
+            onChange={(t) => set({ x: t === "agri" ? (agriType ?? "agri") : t })}
+            options={TOP_ORDER.map((t) => ({
               value: t,
-              label: (
-                <span className="block leading-tight">
-                  <span className="block">{TAX_SHORT[t]}</span>
-                  <span className="block text-[0.8125rem] opacity-75 tabular">{TAX_TYPES[t].rateLabel}</span>
-                </span>
-              ),
+              label: <RateLabel name={TOP_SHORT[t]} rate={TAX_TYPES[t === "agri" ? (agriType ?? "agri") : t].rateLabel} />,
             }))}
-            hint={TAX_HINTS[taxType]}
+            hint={TOP_HINTS[topTax]}
           />
+          {agriType ? (
+            <SegmentedField<AgriTaxType>
+              label="조합 예탁금 세율 (가입 시기·대상)"
+              value={agriType}
+              onChange={(x) => set({ x })}
+              options={AGRI_TAX_TYPES.map((t) => ({
+                value: t,
+                label: <RateLabel name={AGRI_SHORT[t]} rate={TAX_TYPES[t].rateLabel} />,
+              }))}
+              hint={AGRI_HINTS[agriType]}
+            />
+          ) : null}
         </>
       }
       result={
@@ -142,8 +183,8 @@ export function SavingsCalculator({ initialMonthly = DEFAULT_MONTHLY }: { initia
                 label="이자과세"
                 note={
                   res.agriSplit
-                    ? "3천만원까지 1.4% + 초과분 15.4%"
-                    : `${TAX_TYPES[taxType].label} ${TAX_TYPES[taxType].rateLabel}`
+                    ? `3천만원까지 ${taxInfo.rateLabel} + 초과분 ${TAX_TYPES.general.rateLabel}`
+                    : `${taxInfo.label} ${taxInfo.rateLabel}`
                 }
                 value={res.tax > 0 ? `−${formatWon(res.tax)}` : "0원"}
               />
@@ -151,8 +192,9 @@ export function SavingsCalculator({ initialMonthly = DEFAULT_MONTHLY }: { initia
             </StatementSection>
             {res.taxLines.length ? (
               <StatementSection title="세금 내역 (10원 미만 절사)">
+                {/* 조합 예탁금 3천만원 초과 시 이자소득세가 두 줄(한도 안·초과분)이라 note까지 묶어 key로 쓴다. */}
                 {res.taxLines.map((l) => (
-                  <StatementRow key={l.label} label={l.label} note={l.note} value={formatWon(l.amount)} />
+                  <StatementRow key={`${l.label}|${l.note}`} label={l.label} note={l.note} value={formatWon(l.amount)} />
                 ))}
               </StatementSection>
             ) : null}
@@ -176,10 +218,11 @@ export function SavingsCalculator({ initialMonthly = DEFAULT_MONTHLY }: { initia
             </StatementFootnote>
             {res.agriSplit ? (
               <StatementFootnote>
-                조합 예탁금 비과세는 1인당 {koreanWon(AGRI_EXEMPT_CAP)}까지라서, 먼저 넣은 {koreanWon(AGRI_EXEMPT_CAP)}에 붙는
-                이자 {formatWon(res.agriSplit.cappedInterest)}만 1.4%로, 나머지 {koreanWon(res.agriSplit.excessPrincipal)}에 붙는
-                이자 {formatWon(res.agriSplit.excessInterest)}은 일반과세 15.4%로 계산했어요. 다른 조합 예탁금과 합산되고 실제 한도
-                적용 방식은 조합마다 다를 수 있으니 가입할 곳에 확인하세요.
+                조합 예탁금 세금 특례는 1인당 {koreanWon(AGRI_EXEMPT_CAP)}까지라서, 먼저 넣은 {koreanWon(AGRI_EXEMPT_CAP)}에 붙는
+                이자 {formatWon(res.agriSplit.cappedInterest)}만 {taxInfo.rateLabel}로, 나머지{" "}
+                {koreanWon(res.agriSplit.excessPrincipal)}에 붙는 이자 {formatWon(res.agriSplit.excessInterest)}은 일반과세{" "}
+                {TAX_TYPES.general.rateLabel}로 계산했어요. 다른 조합 예탁금과 합산되고 실제 한도 적용 방식은 조합마다 다를 수
+                있으니 가입할 곳에 확인하세요.
               </StatementFootnote>
             ) : null}
           </Statement>

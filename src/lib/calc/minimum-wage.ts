@@ -2,6 +2,16 @@ import { MINIMUM_WAGE } from "@/lib/rates/labor";
 import { employeeInsurance, type InsuranceBreakdown } from "@/lib/rates/insurance";
 import { monthlyWithholding, type Withholding } from "@/lib/rates/withholding";
 import { DEFAULT_PAY_MONTH } from "@/lib/calc/salary";
+import {
+  monthlyHours as monthlyHoursForWeek,
+  monthlyHoursExact as monthlyHoursExactForPaid,
+  monthlyPay,
+  monthlyPayHours as monthlyPayHoursForWeek,
+  uses209,
+} from "@/lib/calc/hourly-wage";
+
+/** Display helpers shared with the 시급·주휴수당 계산기 ("104.2857…", whether 0.01h display is exact). */
+export { exactHoursLabel, shownHoursAreExact } from "@/lib/calc/hourly-wage";
 
 /**
  * 최저임금 환산 (2026·2027).
@@ -12,9 +22,15 @@ import { DEFAULT_PAY_MONTH } from "@/lib/calc/salary";
  * - 최저임금법 제5조② + 시행령 제3조: 수습 3개월 이내 90% (1년 이상 기간을 정했거나 기간의 정함이 없는 계약,
  *   단순노무 제외 — 고용노동부 해석상 정규직 수습도 포함, 1년 미만 계약은 감액 불가)
  * - 근로기준법 제18조③·제55조: 주휴 = 주 15시간 이상, min(주 소정, 40)/40 × 8시간
- * - 월 환산: 주 40시간 = (40 + 8) × 365/7/12 = 208.57 → 고시 기준 209시간(올림).
- *   최저임금법 시행령 제5조①3은 월급 ÷ (1주 유급시간 × 1년 평균 주수 ÷ 12)로 비교하므로, 표시하는 최저 월급이
- *   정확한 기준보다 적어지지 않도록 다른 근무시간도 시간 단위로 올립니다 (주 20시간 104.29 → 105시간).
+ * - 월 환산 시간 = (주 소정 + 주휴) × 365/7/12 — 최저임금법 시행령 제5조①3, which sets no rounding rule.
+ *   Same convention as the 시급·주휴수당 계산기 (shared code in src/lib/calc/hourly-wage.ts; fact-check
+ *   docs/research/verifier-corrections.md item 5): only 주 40시간 + 주휴 8시간 uses the 고시 figure
+ *   209시간 (208.57 → 209). Every other schedule uses the exact decimal value; it is only DISPLAYED
+ *   rounded to 0.01h: 주 15시간 → 78.21, 주 20시간 → 104.29, 주 30시간 → 156.43, 주 35시간 → 182.5,
+ *   주 10시간(주휴 없음) → 43.45. Never ceil (105) or round (104) part-time hours.
+ *   월급 = 시급 × exact 월 환산 시간, rounded once to the won (hourly-wage monthlyPay, integer math):
+ *   2026 주 15시간 10,320 × 78.2142857… = 807,171.43 → 807,171원, 주 20시간 1,076,228.57 → 1,076,229원.
+ * - 금액은 원 단위 반올림 (hourly-wage와 같은 방식이라 두 계산기가 같은 근무조건에서 같은 금액을 보여 줍니다).
  * - 근로기준법 제50조②·제56조①: 1일 8시간 초과는 연장근로, 5인 이상 사업장은 통상임금의 50% 가산.
  */
 
@@ -32,14 +48,14 @@ export const MAX_DAILY_HOURS = 8;
 /** 연장근로 가산율 (근로기준법 제56조①, 상시 5명 이상 사업장): 통상임금의 100분의 50. */
 export const OVERTIME_PREMIUM = 0.5;
 
-/** Round away float noise (e.g. 146.00000000003) before ceil. */
+/** Round away float noise (e.g. 3.0199999999999996 → 3.02). */
 function clean(x: number): number {
   return Math.round(x * 1e6) / 1e6;
 }
 
-/** 원 단위 올림: 최저임금은 '이상' 지급해야 하므로 원 미만은 올립니다. */
-function ceilWon(x: number): number {
-  return Math.ceil(clean(x));
+/** 원 단위 반올림 — hourly-wage.ts의 금액 반올림(Math.round(n + 1e-9))과 같습니다. */
+function won(x: number): number {
+  return Math.round(x + 1e-9);
 }
 
 /** 시간급 최저임금 (원). 수습이면 90% (2026: 9,288원, 2027: 9,630원). */
@@ -54,22 +70,39 @@ export function juhyuHours(weeklyHours: number): number {
   return clean(Math.min(weeklyHours, MAX_WEEKLY_HOURS) / 5);
 }
 
-/** 정확한 월 환산 시간 = (주 소정 + 주휴) × 365 ÷ 7 ÷ 12. 주 40시간 → 208.57시간. */
+/** 정확한 월 환산 시간 = (주 소정 + 주휴) × 365 ÷ 7 ÷ 12 (끝수 처리 전). 주 40시간 → 208.57시간. */
 export function monthlyHoursExact(weeklyHours: number): number {
   if (!(weeklyHours > 0)) return 0;
-  // Work in hundredths of an hour so e.g. 25.2 × 365 / 84 lands exactly on 109.5.
-  const paidHundredths = Math.round((weeklyHours + juhyuHours(weeklyHours)) * 100);
-  return (paidHundredths * 365) / 8400;
+  // hourly-wage works in hundredths of an hour so e.g. 25.2 × 365 / 84 lands exactly on 109.5.
+  return monthlyHoursExactForPaid(weeklyHours + juhyuHours(weeklyHours));
+}
+
+/** True only for 주 40시간 + 주휴 8시간, the schedule the 최저임금 고시 converts at 209시간. */
+export function isMonthly209(weeklyHours: number): boolean {
+  return weeklyHours > 0 && uses209(juhyuHours(weeklyHours));
 }
 
 /**
- * 월 환산 기준시간 (시간 단위 올림). 주 40시간 = 208.57 → 209시간(고시 기준).
- * 다른 근무시간도 같은 식에 비례: 주 20시간 → 104.29 → 105시간, 주 15시간 → 78.21 → 79시간.
- * 올림이라 '시급 × 월 환산 시간'은 항상 법정 기준(시급 × 정확한 시간) 이상입니다.
+ * 월 환산 기준시간, 표시용 0.01시간 단위 — hourly-wage.ts monthlyHours()와 같은 규칙.
+ * 주 40시간 = 208.57 → 고시 기준 209시간. 다른 근무시간은 시간 단위로 올리거나 반올림하지 않습니다:
+ * 주 20시간 → 104.29, 주 15시간 → 78.21, 주 10시간(주휴 없음) → 43.45. 월급은 이 표시값이 아니라
+ * monthlyPayHours()의 정확한 값으로 계산합니다.
  */
 export function monthlyHours(weeklyHours: number): number {
   if (!(weeklyHours > 0)) return 0;
-  return Math.ceil(clean(monthlyHoursExact(weeklyHours)));
+  return monthlyHoursForWeek(weeklyHours, juhyuHours(weeklyHours));
+}
+
+/** 월급 계산에 쓰는 정확한 월 환산 시간 (끝수 처리 없음): 주 40시간 → 209, 주 20시간 → 104.2857…. */
+export function monthlyPayHours(weeklyHours: number): number {
+  if (!(weeklyHours > 0)) return 0;
+  return monthlyPayHoursForWeek(weeklyHours, juhyuHours(weeklyHours));
+}
+
+/** 월급 = 시급 × 정확한 월 환산 시간, 원 단위 반올림 (hourly-wage monthlyPay와 같은 정수 계산). */
+function monthlyWage(hourly: number, weeklyHours: number): number {
+  if (!(weeklyHours > 0)) return 0;
+  return monthlyPay(hourly, weeklyHours, juhyuHours(weeklyHours));
 }
 
 export type MinWageInput = {
@@ -101,7 +134,13 @@ export type MinWageResult = {
   juhyuPay: number;
   /** 주급 = 근로분 + 주휴수당 */
   weekly: number;
+  /** 표시용 월 환산 시간 (0.01h): 주 40시간이면 고시 기준 209, 아니면 (주 소정 + 주휴) × 365/84 */
   monthlyHours: number;
+  /** 월급 계산에 쓴 정확한 월 환산 시간 (209 또는 (주 소정 + 주휴) × 365/84, 끝수 처리 없음) */
+  monthlyPayHours: number;
+  /** true when monthlyHours is the 고시 209시간 (주 40시간 + 주휴 8시간) */
+  monthly209: boolean;
+  /** 월급 = 시급 × 정확한 월 환산 시간 (monthlyPayHours), 원 단위 반올림 */
   monthly: number;
   /** 월급 × 12 */
   annual: number;
@@ -114,23 +153,25 @@ export function calcMinimumWage({ year, weeklyHours, dailyHours, probation = fal
   const hourly = hourlyMinimum(year, probation);
   const jh = juhyuHours(weeklyHours);
   const mh = monthlyHours(weeklyHours);
-  const weeklyWork = ceilWon(hourly * weeklyHours);
-  const juhyuPay = ceilWon(hourly * jh);
-  const monthly = ceilWon(hourly * mh);
-  const fullMonthly = ceilWon(baseHourly * mh);
+  const weeklyWork = won(hourly * weeklyHours);
+  const juhyuPay = won(hourly * jh);
+  const monthly = monthlyWage(hourly, weeklyHours);
+  const fullMonthly = monthlyWage(baseHourly, weeklyHours);
   const overtime = dailyHours > MAX_DAILY_HOURS ? clean(dailyHours - MAX_DAILY_HOURS) : 0;
   return {
     year,
     baseHourly,
     hourly,
-    daily: ceilWon(hourly * dailyHours),
+    daily: won(hourly * dailyHours),
     dailyOvertimeHours: overtime,
-    dailyWithPremium: ceilWon(hourly * (dailyHours + overtime * OVERTIME_PREMIUM)),
+    dailyWithPremium: won(hourly * (dailyHours + overtime * OVERTIME_PREMIUM)),
     weeklyWork,
     juhyuHours: jh,
     juhyuPay,
     weekly: weeklyWork + juhyuPay,
     monthlyHours: mh,
+    monthlyPayHours: monthlyPayHours(weeklyHours),
+    monthly209: isMonthly209(weeklyHours),
     monthly,
     annual: monthly * 12,
     firstYearAnnual: probation ? monthly * 3 + fullMonthly * 9 : monthly * 12,

@@ -10,11 +10,13 @@ import {
   hasOneYearService,
   oneYearBefore,
   retirementIncomeTax,
+  retirementWithholding,
   serviceDays,
   serviceMonths,
   serviceYearsDeduction,
   severanceAmount,
   severanceEstimate,
+  SMALL_TAX_EXEMPTION,
   TABLE_MONTHLY,
   TABLE_YEARS,
   taxServiceYears,
@@ -372,12 +374,92 @@ describe("퇴직소득세 (소득세법 제48·55조, 2026 귀속)", () => {
 
   it("applies 소액부징수 when 산출세액 < 1,000원", () => {
     // 1,750,000 · 1년: 근속공제 1,000,000 → 환산 9,000,000 → 공제 8,600,000 → 과표 400,000 → 24,000 × 1/12 = 2,000
-    expect(retirementIncomeTax(1_750_000, 1).incomeTax).toBe(2_000);
+    const ok = retirementIncomeTax(1_750_000, 1);
+    expect(ok.incomeTax).toBe(2_000);
+    expect(ok.localTax).toBe(200);
+    expect(ok.smallTaxWaived).toBe(false);
     // 1,700,000 · 1년: 환산 8,400,000 → 공제 8,240,000 → 과표 160,000 → 9,600 × 1/12 = 800 → 0
     const t = retirementIncomeTax(1_700_000, 1);
+    expect(t.serviceDeduction).toBe(1_000_000);
+    expect(t.converted).toBe(8_400_000);
+    expect(t.convertedDeduction).toBe(8_240_000);
+    expect(t.taxBase).toBe(160_000);
+    expect(t.convertedTax).toBe(9_600);
     expect(t.computedTax).toBe(800);
     expect(t.incomeTax).toBe(0);
+    expect(t.smallTaxWaived).toBe(true);
+    // Regression (verifier-corrections #4): 지방소득세 is 10% of the 소득세 actually withheld
+    // (지방세법 제103조의13①), so it is 0 — not floor10(800 × 10%) = 80원.
     expect(t.localTax).toBe(0);
+    expect(t.total).toBe(0);
+    // Nothing owed at all is not a waiver
+    expect(retirementIncomeTax(1_150_000, 1).smallTaxWaived).toBe(false);
+  });
+
+  it("withholds in order: 10원 절사 → 소액부징수 → 지방소득세 10% (verifier-corrections #4)", () => {
+    const w = (c: number) => {
+      const { incomeTax, localTax } = retirementWithholding(c);
+      return [incomeTax, localTax];
+    };
+    expect(w(0)).toEqual([0, 0]);
+    expect(w(800)).toEqual([0, 0]); // not [0, 80]
+    expect(w(999)).toEqual([0, 0]); // 990 < 1,000 → waived, and 지방소득세 with it
+    expect(w(1_000)).toEqual([1_000, 100]);
+    expect(w(1_009)).toEqual([1_000, 100]);
+    expect(w(1_230)).toEqual([1_230, 120]); // 123 → 10원 미만 절사
+    expect(w(68_842)).toEqual([68_840, 6_880]); // MOEL 예제
+    expect(w(88_916_666)).toEqual([88_916_660, 8_891_660]);
+  });
+
+  it("never charges 지방소득세 without 소득세 (sweep 퇴직소득 100만~300만원, 근속 1~3년)", () => {
+    for (let years = 1; years <= 3; years++) {
+      for (let income = 1_000_000; income <= 3_000_000; income += 1_000) {
+        const t = retirementIncomeTax(income, years);
+        expect(t.incomeTax === 0 || t.incomeTax >= SMALL_TAX_EXEMPTION).toBe(true);
+        expect(t.incomeTax % 10).toBe(0);
+        expect(t.localTax).toBe(Math.floor(t.incomeTax / 100) * 10);
+        if (t.incomeTax === 0) expect(t.localTax).toBe(0);
+        expect(t.total).toBe(t.incomeTax + t.localTax);
+      }
+    }
+  });
+
+  it("NTS 예시: 퇴직소득 1억원 · 근속 20년 → 퇴직소득세 1,120,000원", () => {
+    // 국세청 퇴직소득세 계산 예시 (confirmed in docs/research/verifier-corrections.md)
+    const t = retirementIncomeTax(100_000_000, 20);
+    expect(t.serviceDeduction).toBe(40_000_000);
+    expect(t.converted).toBe(36_000_000);
+    expect(t.convertedDeduction).toBe(24_800_000);
+    expect(t.taxBase).toBe(11_200_000);
+    expect(t.convertedTax).toBe(672_000);
+    expect(t.incomeTax).toBe(1_120_000);
+    expect(t.localTax).toBe(112_000);
+  });
+});
+
+describe("calcSeverance with 소액부징수", () => {
+  it("퇴직금 1,700,000원 · 근속 1년 → 세금 0원, 세후 = 세전", () => {
+    // 2025-10-01 입사, 퇴직일 2026-10-01 (365일, 12개월 → 1년), 3개월 2026-07-01~09-30 (92일)
+    // 5,213,333 ÷ 92 = 56,666.663… → 56,666.67원 × 30 × 365 ÷ 365 = 1,700,000.1 → 1,700,000원
+    const r = calcSeverance({
+      hire: d("2025-10-01"),
+      retire: d("2026-10-01"),
+      wage3m: 5_213_333,
+      annualBonus: 0,
+      annualLeavePay: 0,
+      weekly15h: true,
+    })!;
+    expect(r.eligible).toBe(true);
+    expect(r.termDays).toBe(365);
+    expect(r.wage.daily).toBe(56_666.67);
+    expect(r.severance).toBe(1_700_000);
+    expect(r.months).toBe(12);
+    expect(r.tax!.years).toBe(1);
+    expect(r.tax!.computedTax).toBe(800);
+    expect(r.tax!.incomeTax).toBe(0);
+    expect(r.tax!.localTax).toBe(0);
+    expect(r.tax!.smallTaxWaived).toBe(true);
+    expect(r.net).toBe(1_700_000);
   });
 });
 

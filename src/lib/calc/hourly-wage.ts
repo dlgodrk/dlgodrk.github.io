@@ -4,13 +4,16 @@
  * Rules (checked 2026-10-09; details and sources in docs/research/labor-2026.md):
  * - 주휴수당: 근로기준법 제55조①, 시행령 제30조① (1주 소정근로일 개근), 제18조③ (4주 평균 1주
  *   소정근로시간 15시간 미만이면 제55조 미적용). 주휴시간 = min(주 소정근로시간, 40) / 40 × 8.
- * - 월 환산 시간 = (주 소정근로시간 + 주휴시간) × 365/7/12 (평균 4.345주). 주 40시간이면
- *   48 × 365/84 = 208.57 → 209시간 (최저임금 월 환산액 고시 기준). Other schedules use the same
- *   rounding to a whole hour, half-up (반올림, not 올림): 주 20시간 → 104.29 → 104시간 (올림이면 105),
- *   주 35시간 → 182.5 → 183시간. Below 50 monthly hours a whole-hour step would move pay by more
- *   than 1%, so tiny schedules keep 0.01h instead (주 10시간 → 43.45시간, 주 1시간 → 4.35시간).
- *   Note: docs/research/labor-2026.md says "rounded UP"; its only example (208.57 → 209) is
- *   identical under half-up, and half-up gives the commonly cited 104시간 for 주 20시간.
+ * - 월 환산 시간 = (주 소정근로시간 + 주휴시간) × 365/7/12 (평균 4.345주) — 최저임금법 시행령
+ *   제5조①3, which sets no rounding rule. Only 주 소정 40시간 + 주휴 8시간 uses the whole number
+ *   209시간 (48 × 365/84 = 208.57; the 최저임금 고시 월 환산액 is 시급 × 209). Every other schedule
+ *   uses the exact decimal value (fact-check 2026-10-09, docs/research/verifier-corrections.md item 5):
+ *   월급 = 시급 × exact hours, rounded once to the won; the hours are only DISPLAYED rounded to 0.01h
+ *   (주 15시간 → 78.21, 주 20시간 → 104.29, 주 35시간 → 182.5, 주 10시간 → 43.45).
+ *   2026 주 15시간 = 10,320 × 78.2142857… = 807,171.43 → 807,171원 (10,320 × 78.21 would be 807,127).
+ *   Do not ceil (105) or round (104) part-time hours, and do not pro-rate 209 (20h → 104.5). With
+ *   연장근로 on top of 40h, the extra hours are added to 209 at × 365/84 (10h → 209 + 43.452…).
+ *   All of this is integer math in 1/8400-hour units (hours × 100 × 365 is whole), so pay has no float noise.
  * - 연장근로: 1일 8시간·1주 40시간 초과분 (근로기준법 제50조). 상시 5인 이상 사업장만 50% 가산
  *   (제56조). Shown as a note only; pay here counts every hour at 1배.
  * - 3.3% 원천징수 (사업소득): 소득세 3% (소득세법 제129조①3) + 지방소득세 = 소득세 × 10%
@@ -39,8 +42,13 @@ export const LEGAL_DAILY_HOURS = 8;
 export const LEGAL_WEEKLY_HOURS = 40;
 /** 평균 주 수 per month = 365 / 7 / 12 ≈ 4.345. */
 export const WEEKS_PER_MONTH = 365 / 84;
-/** 월 환산 시간 below this keep 0.01h (whole-hour rounding would move pay by more than 1%). */
-export const WHOLE_HOUR_MIN_MONTHLY = 50;
+/**
+ * 월 환산 시간 is kept as an integer count of 1/8400 hour: weekly hours come in 0.01h steps
+ * (0.1h work + 0.02h 주휴), and 0.01h × 365/84 = 365/8400 h.
+ */
+export const MONTHLY_HOUR_UNITS = 8_400;
+/** 주 소정 40시간 + 주휴 8시간의 월 환산 시간 (최저임금 고시 월 환산액 기준, 208.57 → 209). */
+export const OFFICIAL_MONTHLY_HOURS_40H = 209;
 /** 수습 감액 한도 (최저임금법 제5조②, 시행령 제3조): 최저임금의 90%. */
 export const PROBATION_RATIO = 0.9;
 /** Pay month whose 4대보험·간이세액 rules are applied (2026 요율). */
@@ -104,18 +112,55 @@ export function monthlyHoursExact(weeklyPaidHours: number): number {
 }
 
 /**
- * 월 환산 시간 rounded half-up to a whole hour: 48h → 209, 24h → 104, 42h → 183.
- * Under 50h a month (주 11.5시간 미만) it keeps 0.01h: 10h → 43.45, 1h → 4.35, 0.1h → 0.43.
+ * True when the week has the full 8 주휴시간, i.e. 주 소정근로시간 40시간 (the cap) with 개근 —
+ * the schedule the 최저임금 고시 converts at 209시간 a month.
  */
-export function monthlyHours(weeklyPaidHours: number): number {
-  const exact = monthlyHoursExact(weeklyPaidHours);
-  if (exact < WHOLE_HOUR_MIN_MONTHLY - EPS) return round2(exact);
-  return Math.floor(exact + 0.5 + EPS);
+export function uses209(juhyu: number): boolean {
+  return juhyu >= 8 - EPS;
 }
 
-/** 월급 = 시급 × 월 환산 시간 (0.01h 단위까지), 원 단위 반올림. */
-export function monthlyPay(wage: number, hours: number): number {
-  return Math.floor((wage * Math.round(hours * 100)) / 100 + 0.5 + EPS);
+/**
+ * Exact 월 환산 시간 in 1/8400-hour units (an integer; 0 for no hours) for a week of `weeklyWork`
+ * hours worked plus `juhyu` 주휴시간.
+ * - 주 소정 40시간 + 주휴 8시간: 209 × 8400 (고시 기준), plus hours worked over 40 × 365/84.
+ * - Every other schedule: (근무 + 주휴) × 365/7/12 = (hours × 100) × 365 units, never rounded.
+ */
+export function monthlyHourUnits(weeklyWork: number, juhyu: number): number {
+  if (uses209(juhyu)) {
+    const extra = Math.round(Math.max(0, weeklyWork - LEGAL_WEEKLY_HOURS) * 100);
+    return OFFICIAL_MONTHLY_HOURS_40H * MONTHLY_HOUR_UNITS + (extra > 0 ? extra * 365 : 0);
+  }
+  const hundredths = Math.round((weeklyWork + juhyu) * 100);
+  return hundredths > 0 ? hundredths * 365 : 0;
+}
+
+/**
+ * Exact (unrounded) 월 환산 시간 that pay is computed from: 209 for 주 40시간 + 주휴 8시간
+ * (209 + 연장 × 365/84 with overtime), otherwise (근무 + 주휴) × 365/84 — 20 + 4 → 104.2857….
+ */
+export function monthlyPayHours(weeklyWork: number, juhyu: number): number {
+  return monthlyHourUnits(weeklyWork, juhyu) / MONTHLY_HOUR_UNITS;
+}
+
+/**
+ * 월 환산 시간 for DISPLAY, rounded half up to 0.01h (pay uses the exact value, see monthlyPay).
+ * - 주 소정 40시간 + 주휴 8시간: 209 (고시 기준), plus hours worked over 40 × 365/84 (40h + 10h → 252.45).
+ * - Every other schedule: (근무 + 주휴) × 365/7/12, not rounded to a whole hour:
+ *   15 + 3 → 78.21, 20 + 4 → 104.29, 35 + 7 → 182.5, 14 + 0 → 60.83, 40 + 0 (결근) → 173.81.
+ */
+export function monthlyHours(weeklyWork: number, juhyu: number): number {
+  const units = monthlyHourUnits(weeklyWork, juhyu);
+  return Math.floor((units * 100 + MONTHLY_HOUR_UNITS / 2) / MONTHLY_HOUR_UNITS) / 100;
+}
+
+/**
+ * 월급 = 시급 × exact 월 환산 시간 (not the 0.01h display value), 원 단위 반올림, in integers:
+ * round(시급 × units / 8400). 2026: 주 15시간 807,171원, 주 20시간 1,076,229원, 주 40시간 2,156,880원.
+ */
+export function monthlyPay(wage: number, weeklyWork: number, juhyu: number): number {
+  const units = monthlyHourUnits(weeklyWork, juhyu);
+  if (!(wage > 0) || units === 0) return 0;
+  return Math.floor((wage * units + MONTHLY_HOUR_UNITS / 2) / MONTHLY_HOUR_UNITS);
 }
 
 export type FreelanceTax = { incomeTax: number; localTax: number; total: number };
@@ -220,9 +265,15 @@ export type HourlyResult = {
   weeklyTotal: number;
   /** 주 근무시간 + 주휴시간 */
   weeklyPaidHours: number;
+  /** weeklyPaidHours × 365/84, unrounded (48h → 208.57 even when 209 is used) */
   monthlyHoursExact: number;
+  /** exact 월 환산 시간 behind monthlyGross: 209 (+ 연장 × 365/84) or (근무 + 주휴) × 365/84, unrounded */
+  monthlyPayHours: number;
+  /** 월 환산 시간 shown to 0.01h: 209 for 주 소정 40시간 + 주휴 8시간, otherwise the decimal formula */
   monthlyHours: number;
-  /** 월급(세전) = 시급 × 월 환산 시간 */
+  /** true when monthlyHours is built on the 고시 209시간 (주 소정 40시간, 개근) */
+  monthly209: boolean;
+  /** 월급(세전) = 시급 × exact 월 환산 시간 (monthlyPayHours), 원 단위 반올림 */
   monthlyGross: number;
   /** 참고: 주급 합계 × 365/7/12 (평균 4.345주) */
   monthlyByWeeks: number;
@@ -252,14 +303,15 @@ export function calcHourly(input: HourlyInput): HourlyResult {
   const weeklyTotal = weeklyBase + jp;
   const weeklyPaidHours = round2(weeklyWork + jh);
   const mhExact = monthlyHoursExact(weeklyPaidHours);
-  const mh = monthlyHours(weeklyPaidHours);
-  const monthlyGross = monthlyPay(wage, mh);
+  const mh = monthlyHours(weeklyWork, jh);
+  const monthlyGross = monthlyPay(wage, weeklyWork, jh);
 
   const freelance = deduction === "freelance" ? freelanceTax(monthlyGross) : null;
   const insured = deduction === "insured" ? insuredDeductions(monthlyGross, contractualWeekly, input.payMonth) : null;
   const deductionTotal = freelance?.total ?? insured?.total ?? 0;
 
   const otWeekly = won(overtime * wage * 0.5);
+  const otTenths = Math.round(overtime * 10);
   return {
     wage,
     weeklyWork,
@@ -272,16 +324,19 @@ export function calcHourly(input: HourlyInput): HourlyResult {
     weeklyTotal,
     weeklyPaidHours,
     monthlyHoursExact: mhExact,
+    monthlyPayHours: monthlyPayHours(weeklyWork, jh),
     monthlyHours: mh,
+    monthly209: uses209(jh),
     monthlyGross,
-    monthlyByWeeks: won(weeklyTotal * WEEKS_PER_MONTH),
+    // 주급 합계 × 365/84 and 연장 × 시급 × 0.5 × 365/84, 원 단위 반올림 in integers (no float noise).
+    monthlyByWeeks: Math.floor((weeklyTotal * 365 + 42) / 84),
     deduction,
     freelance,
     insured,
     deductionTotal,
     monthlyNet: monthlyGross - deductionTotal,
     overtimePremiumWeekly: otWeekly,
-    overtimePremiumMonthly: won(overtime * wage * 0.5 * WEEKS_PER_MONTH),
+    overtimePremiumMonthly: Math.floor((otTenths * wage * 365 + 840) / 1_680),
   };
 }
 
@@ -292,10 +347,10 @@ export function calcHourly(input: HourlyInput): HourlyResult {
 export function payForWeeklyHours(weeklyHours: number, wage: number, rateYear: RateYear = 2026) {
   const jh = juhyuHours(weeklyHours);
   const paid = round2(weeklyHours + jh);
-  const mh = monthlyHours(paid);
+  const mh = monthlyHours(weeklyHours, jh);
   const weeklyBase = won(wage * weeklyHours);
   const jp = won(jh * wage);
-  const monthlyGross = monthlyPay(wage, mh);
+  const monthlyGross = monthlyPay(wage, weeklyHours, jh);
   return {
     weeklyHours,
     juhyuHours: jh,
@@ -303,7 +358,10 @@ export function payForWeeklyHours(weeklyHours: number, wage: number, rateYear: R
     juhyuPay: jp,
     weeklyTotal: weeklyBase + jp,
     monthlyHoursExact: monthlyHoursExact(paid),
+    /** exact hours behind monthlyGross (209 for 주 40시간) */
+    monthlyPayHours: monthlyPayHours(weeklyHours, jh),
     monthlyHours: mh,
+    monthly209: uses209(jh),
     monthlyGross,
     netFreelance: monthlyGross - freelanceTax(monthlyGross).total,
     netInsured: monthlyGross - insuredDeductions(monthlyGross, weeklyHours, undefined, rateYear).total,
@@ -349,4 +407,18 @@ export const WAGE_TABLE = [10_320, 10_700, 11_000, 12_000, 13_000, 15_000];
 /** Format hours: 4 → "4", 3.2 → "3.2", 3.44 → "3.44". */
 export function hoursLabel(h: number): string {
   return String(Math.round(h * 100) / 100);
+}
+
+/**
+ * Exact hours cut (not rounded) to 4 decimals, with "…" when more digits follow:
+ * 104.285714… → "104.2857…", 43.452380… → "43.4523…", 182.5 → "182.5", 209 → "209".
+ */
+export function exactHoursLabel(h: number): string {
+  const cut = Math.floor(h * 10_000 + EPS) / 10_000;
+  return Math.abs(cut - h) < 1e-9 ? String(cut) : `${cut}…`;
+}
+
+/** True when the 0.01h display value equals the exact 월 환산 시간 (209, 182.5, 146 …), so no "약" is needed. */
+export function shownHoursAreExact(payHours: number, shownHours: number): boolean {
+  return Math.abs(payHours - shownHours) < 1e-9;
 }

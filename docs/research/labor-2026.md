@@ -1,5 +1,7 @@
 # 2026 Korean labor-law numbers: 최저임금, 주휴수당, 퇴직금 및 퇴직소득세, 연차휴가, 실업급여(구직급여). Researched 2026-10-09.
 
+
+> **Errata (2026-10-09):** (1) 209h applies only to 주 40시간 + 주휴 8시간; it is NOT a rule to round other schedules up. Other schedules use the exact decimal (주소정 + 주휴) × 365/7/12 for pay, displayed to 0.01h (최저임금법 시행령 제5조①3 has no rounding rule). (2) In the 퇴직소득세 pseudocode, apply the <1,000원 소액부징수 check BEFORE computing 지방소득세; when 소득세 is waived, 지방소득세 is 0. See docs/research/verifier-corrections.md.
 _Researched 2026-10-09 by a research agent with web sources; see source URLs per fact._
 
 ## Facts
@@ -9,7 +11,7 @@ _Researched 2026-10-09 by a research agent with web sources; see source URLs per
 - **minimum_wage_daily_8h_2026** = 82,560원 (10,320 × 8) (2026-01-01~2026-12-31, high)
   - sources: https://www.minimumwage.go.kr/minWage/policy/decisionMain.do
 - **minimum_wage_monthly_209h_2026** = 2,156,880원 (10,320 × 209) (2026-01-01~2026-12-31, high)
-  - 209h = (40h of work + 8h 주휴) × 365/7/12 = 208.57, rounded up to 209.
+  - 209h = (40h of work + 8h 주휴) × 365/7/12 = 208.57, which the 고시 states as 209. 209h is used only for 주 40시간 + 주휴 8시간; other schedules use the exact decimal (주소정 + 주휴) × 365/7/12 for pay, displayed to 0.01h (see Errata).
   - sources: https://www.minimumwage.go.kr/minWage/policy/decisionMain.do , https://www.segye.com/newsView/20260805506126
 - **minimum_wage_hourly_2027** = 10,700원/시간 (+380원, +3.7%) (2027-01-01~2027-12-31, high)
   - Decided by vote at the 14th plenary meeting on 2026-07-14 (the employer side's revised proposal). MOEL published the final notice on 2026-08-05. The objections filed by 민주노총 and 소상공인연합회 were rejected. One outlet reported a lawsuit to cancel the notice; this is unverified and does not change the effective rate.
@@ -104,8 +106,10 @@ _Researched 2026-10-09 by a research agent with web sources; see source URLs per
 MW = {2025:10030, 2026:10320, 2027:10700}            // 원/시간, effective Jan 1 - Dec 31
 daily8h(y)  = MW[y]*8                                 // 2026: 82,560; 2027: 85,600
 monthly(y)  = MW[y]*209                               // 2026: 2,156,880; 2027: 2,236,300
-// General monthly hours for a weekly schedule: (weeklyHrs + weeklyHolidayHrs) * 365/7/12, rounded UP to an integer
-//   (40 + 8) * 4.345238 = 208.57 -> 209
+// Monthly hours: 209h ONLY for 주 40시간 + 주휴 8시간 ((40 + 8) * 365/7/12 = 208.57 -> 고시 209).
+// Every other schedule: exact decimal (weeklyHrs + weeklyHolidayHrs) * 365/7/12 for pay (no rounding rule in
+//   최저임금법 시행령 제5조①3), displayed to 0.01h; pay = round(MW * exactHours) to the won.
+//   2026: 15h -> 78.2142…h (shown 78.21) -> 807,171원; 20h -> 104.2857…h (shown 104.29) -> 1,076,229원
 probation(y) = MW[y]*0.9                              // 2026: 9,288; 2027: 9,630 (strict conditions apply)
 overtime_min(y) = MW[y]*1.5                           // 2026: 15,480
 

@@ -13,17 +13,28 @@
  * 세금(원천징수)
  * - 일반과세 15.4%: 이자소득세 14% (소득세법 제129조 제1항 제1호 라목) +
  *   지방소득세 = 원천징수 소득세의 10% (지방세법 제103조의13)
- * - 세금우대 9.5%: 소득세 9% + 농어촌특별세 0.5% (옛 세금우대종합저축, 조세특례제한법 제89조)
- * - 조합 예탁금 1.4%: 이자소득세 비과세, 농어촌특별세 1.4%만 (조세특례제한법 제89조의3)
- *   "1명당 3천만원 이하의 예탁금만 해당"하므로 원금 합계가 3천만원을 넘으면 먼저 넣은 3천만원
- *   (앞 회차부터)에 붙는 이자만 1.4%, 나머지 회차 이자는 일반과세 15.4%로 나눠 계산한다.
+ * - 세금우대 9.5%: 소득세 9% + 농어촌특별세 0.5% (옛 세금우대종합저축, 조세특례제한법 제89조,
+ *   2014.12.31까지 가입분만). 3천만원 한도가 있는 2027년 이후 가입 조합 예탁금은 agri2027로 따로 둔다.
+ * - 조합 예탁금 (지역 농·축협·수협·산림조합·신협·새마을금고, 조세특례제한법 제89조의3,
+ *   2025.12.23 전문개정, 2026.1.1 시행). 세율은 이자를 받는 해가 아니라 예탁금에 "가입한" 해로 정해진다.
+ *   - agri 1.4%: 소득세 비과세 + 농어촌특별세 1.4% (감면세액 14%의 10%, 농어촌특별세법 제5조①).
+ *     2025.12.31까지 가입분(누구나), 그리고 같은 조 ②의 대상자 — 제88조의5②1호: 대통령령으로 정하는
+ *     조합(농협·수협·산림조합)의 조합원, 또는 직전 과세기간 총급여 7천만원 이하·종합소득금액 6천만원
+ *     이하인 사람 — 의 2026.1.1~2028.12.31 가입분. (이들도 2029년 가입분 5%, 2030년 이후 9%.)
+ *   - agri2026 5.9%: 그 밖의 사람이 2026년에 가입. 소득세 5% + 농어촌특별세 0.9% (감면세액 9%의 10%).
+ *   - agri2027 9.5%: 그 밖의 사람이 2027.1.1 이후 가입. 소득세 9% + 농어촌특별세 0.5% (감면세액 5%의 10%).
+ *   5%·9% 분리과세분에는 지방소득세가 붙지 않는다 (제89조의3①).
+ *   셋 다 "1명당 3천만원 이하의 예탁금만 해당"하므로 원금 합계가 3천만원을 넘으면 먼저 넣은 3천만원
+ *   (앞 회차부터)에 붙는 이자만 특례 세율, 나머지 회차 이자는 일반과세 15.4%로 나눠 계산한다.
  *   (같은 방식으로 deposit.ts는 MUTUAL_EXEMPT_CAP 초과 원금을 일반과세로 계산)
  * - 비과세 0%: 비과세종합저축(조특법 제88조의2), 청년도약계좌·청년미래적금 등
  * 각 세목은 따로 계산해 10원 미만을 버린다 (국고금 관리법 제47조 끝수 계산, 은행 원천징수 관행).
  */
 
 export type InterestType = "simple" | "monthly";
-export type TaxType = "general" | "preferential" | "agri" | "exempt";
+/** 조합 예탁금 과세 구분: 비과세 대상(1.4%) · 2026년 가입(5.9%) · 2027년 이후 가입(9.5%). */
+export type AgriTaxType = "agri" | "agri2026" | "agri2027";
+export type TaxType = "general" | "preferential" | AgriTaxType | "exempt";
 
 type TaxLineRule = {
   label: string;
@@ -62,10 +73,28 @@ export const TAX_TYPES: Record<TaxType, TaxTypeInfo> = {
     ],
   },
   agri: {
-    label: "조합 예탁금",
+    label: "조합 예탁금 비과세",
     rate: 0.014,
     rateLabel: "1.4%",
     lines: [{ label: "농어촌특별세", note: "1.4%", bp: 140 }],
+  },
+  agri2026: {
+    label: "조합 예탁금 2026년 가입",
+    rate: 0.059,
+    rateLabel: "5.9%",
+    lines: [
+      { label: "이자소득세", note: "5%", bp: 500 },
+      { label: "농어촌특별세", note: "0.9%", bp: 90 },
+    ],
+  },
+  agri2027: {
+    label: "조합 예탁금 2027년 이후 가입",
+    rate: 0.095,
+    rateLabel: "9.5%",
+    lines: [
+      { label: "이자소득세", note: "9%", bp: 900 },
+      { label: "농어촌특별세", note: "0.5%", bp: 50 },
+    ],
   },
   exempt: {
     label: "비과세",
@@ -75,10 +104,17 @@ export const TAX_TYPES: Record<TaxType, TaxTypeInfo> = {
   },
 };
 
-export const TAX_TYPE_ORDER: TaxType[] = ["general", "preferential", "agri", "exempt"];
+export const TAX_TYPE_ORDER: TaxType[] = ["general", "preferential", "agri", "agri2026", "agri2027", "exempt"];
+
+/** 조합 예탁금 세 가지 (1인 3천만원 한도가 붙는 과세 구분), 가입 시기 순. */
+export const AGRI_TAX_TYPES: AgriTaxType[] = ["agri", "agri2026", "agri2027"];
 
 export function isTaxType(v: string): v is TaxType {
-  return v === "general" || v === "preferential" || v === "agri" || v === "exempt";
+  return (TAX_TYPE_ORDER as string[]).includes(v);
+}
+
+export function isAgriTax(t: TaxType): t is AgriTaxType {
+  return t === "agri" || t === "agri2026" || t === "agri2027";
 }
 
 /** Floor a won amount, tolerating floating-point noise like 113749.99999999999. */
@@ -190,13 +226,16 @@ export type SavingsResult = {
   /** 원금 전체를 처음부터 맡긴 예금이라면 세전 연 몇 %와 같은지 (세전 이자 ÷ 원금 ÷ 년수) */
   depositEquivalentRate: number;
   /**
-   * 조합 예탁금인데 원금 합계가 3천만원을 넘을 때만 값이 있다.
-   * 먼저 넣은 3천만원에 붙는 이자(1.4%)와 나머지 이자(일반과세 15.4%)로 나눈 내역.
+   * 조합 예탁금(agri·agri2026·agri2027)인데 원금 합계가 3천만원을 넘을 때만 값이 있다.
+   * 먼저 넣은 3천만원에 붙는 이자(특례 세율)와 나머지 이자(일반과세 15.4%)로 나눈 내역.
    */
   agriSplit: { cappedInterest: number; excessInterest: number; excessPrincipal: number } | null;
 };
 
-/** 상호금융(농협·수협·신협·산림조합·새마을금고) 예탁금 비과세 한도: 1인당 3,000만원 (조특법 제89조의3①). */
+/**
+ * 상호금융(농협·수협·신협·산림조합·새마을금고) 예탁금 특례(비과세·저율과세) 한도:
+ * 1인당 3,000만원, 모든 조합 예탁금 합산 (조특법 제89조의3①).
+ */
 export const AGRI_EXEMPT_CAP = 30_000_000;
 
 export function calcSavings({ monthly, months, ratePct, interestType = "simple", taxType = "general" }: SavingsInput): SavingsResult {
@@ -207,14 +246,14 @@ export function calcSavings({ monthly, months, ratePct, interestType = "simple",
   let lines: TaxLine[];
   let total: number;
   let agriSplit: SavingsResult["agriSplit"] = null;
-  if (taxType === "agri" && principal > AGRI_EXEMPT_CAP) {
-    // 3천만원 한도 안의 회차 이자는 농어촌특별세 1.4%, 넘는 회차 이자는 일반과세.
+  if (isAgriTax(taxType) && principal > AGRI_EXEMPT_CAP) {
+    // 3천만원 한도 안의 회차 이자는 조합 예탁금 세율(1.4%·5.9%·9.5%), 넘는 회차 이자는 일반과세.
     const cappedInterest = Math.min(interest, savingsInterestOfFirst(monthly, n, ratePct, interestType, AGRI_EXEMPT_CAP));
     const excessInterest = interest - cappedInterest;
-    const capped = interestTax(cappedInterest, "agri");
+    const capped = interestTax(cappedInterest, taxType);
     const excess = interestTax(excessInterest, "general");
     lines = [
-      { ...capped.lines[0], note: "3천만원까지 이자의 1.4%" },
+      ...capped.lines.map((l) => ({ ...l, note: `3천만원까지 이자의 ${l.note}` })),
       { ...excess.lines[0], note: "초과분 이자의 14%" },
       { ...excess.lines[1], note: "초과분 소득세의 10%" },
     ];

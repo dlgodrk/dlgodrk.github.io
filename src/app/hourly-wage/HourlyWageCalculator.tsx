@@ -13,10 +13,12 @@ import {
 import { formatNumber, formatWon, koreanWon } from "@/lib/format";
 import {
   calcHourly,
+  exactHoursLabel,
   hoursLabel,
   JUHYU_MIN_WEEKLY_HOURS,
   MIN_WAGE_2026,
   MIN_WAGE_2027,
+  shownHoursAreExact,
   type DeductionMode,
 } from "@/lib/calc/hourly-wage";
 import { useUrlState } from "@/lib/useUrlState";
@@ -47,6 +49,9 @@ export function HourlyWageCalculator({
 
   const r = valid ? calcHourly({ wage: s.w, dailyHours: s.h, days, perfectAttendance: s.a, deduction: mode }) : null;
   const belowMin = wageOk && s.w < MIN_WAGE_2026;
+  // Pay uses the exact 월 환산 시간; the 0.01h value shown gets "약" unless it is exact (209, 182.5 …).
+  const hoursExact = r ? shownHoursAreExact(r.monthlyPayHours, r.monthlyHours) : true;
+  const monthHours = r ? `${hoursExact ? "" : "약 "}${hoursLabel(r.monthlyHours)}시간` : "";
 
   return (
     <CalcLayout
@@ -112,7 +117,7 @@ export function HourlyWageCalculator({
             <StatementHero
               label={mode === "none" ? "예상 월급 (세전)" : "예상 월급 (세후 실수령)"}
               value={formatWon(mode === "none" ? r.monthlyGross : r.monthlyNet)}
-              sub={`${koreanWon(mode === "none" ? r.monthlyGross : r.monthlyNet)} · 월 ${hoursLabel(r.monthlyHours)}시간 기준`}
+              sub={`${koreanWon(mode === "none" ? r.monthlyGross : r.monthlyNet)} · 월 ${monthHours} 기준`}
               stamp={mode === "none" ? "세전" : "세후"}
             />
             <StatementSection title="주급">
@@ -142,10 +147,25 @@ export function HourlyWageCalculator({
             <StatementSection title="월급">
               <StatementRow
                 label="월 환산 시간"
-                value={`${hoursLabel(r.monthlyHours)}시간`}
-                note={`(${hoursLabel(r.weeklyWork)}+${hoursLabel(r.juhyuHours)})시간 × 365÷7÷12 = ${formatNumber(r.monthlyHoursExact, 2)}`}
+                value={monthHours}
+                note={
+                  !r.monthly209
+                    ? `(${hoursLabel(r.weeklyWork)}+${hoursLabel(r.juhyuHours)})시간 × 365÷7÷12${hoursExact ? "" : ", 0.01시간까지 표시"}`
+                    : r.overtime > 0
+                      ? `(40+8)시간분 고시 기준 209 + 연장 ${hoursLabel(r.overtime)}시간 × 365÷7÷12`
+                      : `(40+8)시간 × 365÷7÷12 = ${formatNumber(r.monthlyHoursExact, 2)} → 고시 기준 209`
+                }
               />
-              <StatementRow label="월급 (세전)" value={formatWon(r.monthlyGross)} emphasis />
+              <StatementRow
+                label="월급 (세전)"
+                value={formatWon(r.monthlyGross)}
+                note={
+                  hoursExact
+                    ? `시급 × ${hoursLabel(r.monthlyHours)}시간`
+                    : `시급 × ${exactHoursLabel(r.monthlyPayHours)}시간, 원 미만 반올림`
+                }
+                emphasis
+              />
             </StatementSection>
             {r.freelance ? (
               <StatementSection title="공제 (3.3%)">
@@ -182,6 +202,12 @@ export function HourlyWageCalculator({
               <StatementTotal label="월 실수령액 (공제 전)" value={formatWon(r.monthlyNet)} />
             )}
             <StatementFootnote>
+              {r.monthly209
+                ? "주 40시간분은 최저임금 고시와 같이 월 209시간(208.57시간)으로 계산했어요. "
+                : "209시간은 주 40시간일 때 쓰는 고시 기준이라, 이 근무시간은 1시간 단위로 맞추지 않고 공식 그대로 계산했어요. "}
+              {hoursExact
+                ? ""
+                : "반올림하지 않은 정확한 월 환산 시간에 시급을 곱하고 원 미만만 반올림했어요. 시간은 소수 둘째 자리까지만 보여 드려요. "}
               월급은 1년 평균 4.345주(365÷7÷12)로 나눈 값이라 실제로는 그 달 근무일수에 따라 조금씩 달라져요. 주급 합계 ×
               365÷7÷12로 계산하면 {formatWon(r.monthlyByWeeks)}이에요.
               {r.overtime > 0

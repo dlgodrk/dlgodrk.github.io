@@ -28,25 +28,38 @@ import {
 import { useUrlState } from "@/lib/useUrlState";
 
 type MethodKey = "s" | "c";
-/** URL value of `x`: m = 상호금융 비과세(1.4%), n = 상호금융 저율과세(5.9%, 2026년 가입) */
-type TaxKey = "g" | "p" | "m" | "n" | "e";
-/** Top-level 과세 구분 buttons; 상호금융(m/n) shares one button and gets a second selector. */
+/**
+ * URL value of `x`. 상호금융 예탁금은 가입 시기로 세율이 정해진다 (조특법 제89조의3):
+ * m = 비과세(1.4%), n = 2026년 가입(5.9%), h = 2027년 이후 가입(9.5%).
+ * p = 옛 세금우대종합저축 9.5% (3천만원 한도 분할 없음).
+ */
+type TaxKey = "g" | "p" | "m" | "n" | "h" | "e";
+/** Top-level 과세 구분 buttons; 상호금융(m/n/h) shares one button and gets a second selector. */
 type TopKey = "g" | "p" | "m" | "e";
-type MutualKey = "m" | "n";
+type MutualKey = "m" | "n" | "h";
 
-const TAX_BY_KEY: Record<TaxKey, TaxType> = { g: "general", p: "preferential", m: "mutual", n: "mutualLow", e: "exempt" };
+const TAX_BY_KEY: Record<TaxKey, TaxType> = {
+  g: "general",
+  p: "preferential",
+  m: "mutual",
+  n: "mutualLow",
+  h: "mutualHigh",
+  e: "exempt",
+};
 const TOP_LABEL: Record<TopKey, string> = { g: "일반", p: "세금우대", m: "상호금융", e: "비과세" };
+const MUTUAL_LABEL: Record<MutualKey, string> = { m: "비과세", n: "2026년 가입", h: "2027년 이후" };
 
 const TAX_HINT: Record<TopKey, string> = {
   g: "대부분의 은행·저축은행 예금은 일반과세(소득세 14% + 지방소득세 1.4%)예요. NH농협은행·Sh수협은행 예금도 일반과세예요.",
-  p: "2014년까지 가입한 세금우대종합저축처럼 소득세 9%와 농어촌특별세 0.5%를 떼는 상품일 때 골라요. 지금은 새로 가입할 수 없어요.",
-  m: "지역 농·축협, 수협(조합), 신협, 산림조합, 새마을금고 예탁금은 1인당 3천만원까지 세금 특례가 있어요. NH농협은행·Sh수협은행 예금은 일반과세예요.",
+  p: "소득세 9%와 농어촌특별세 0.5%를 떼는 옛 세금우대종합저축(2014년까지 가입, 지금은 신규 가입 불가) 세율이에요. 2027년 이후 가입하는 상호금융 예탁금도 9.5%지만 3천만원 한도가 있으니 ‘상호금융’에서 골라요.",
+  m: "지역 농·축협, 수협(조합), 신협, 산림조합, 새마을금고 예탁금은 1인당 3천만원까지 세금 특례가 있어요. 세율은 가입한 해와 비과세 대상인지로 정해져요. NH농협은행·Sh수협은행 예금은 일반과세예요.",
   e: "비과세종합저축처럼 이자에 세금이 붙지 않는 상품일 때 골라요.",
 };
 
 const MUTUAL_HINT: Record<MutualKey, string> = {
-  m: "2025년까지 가입한 예탁금이거나, 2026~2028년에 가입했어도 조합원 또는 직전 연도 총급여 7천만원(종합소득 6천만원) 이하라면 비과세예요.",
-  n: "그 밖의 사람이 2026년에 가입한 예탁금은 소득세 5%와 농어촌특별세 0.9%를 떼요(지방소득세 없음). 2027년 이후 가입분은 소득세 9%예요. 적용 대상은 조합에 확인하세요.",
+  m: "2025년까지 가입한 예탁금은 누구나 소득세가 비과세예요. 2026~2028년 가입분은 농·어·임업인 조합원이거나 직전 연도 총급여 7천만원(종합소득 6천만원) 이하인 사람만 비과세예요. 농어촌특별세 1.4%만 떼요.",
+  n: "비과세 대상이 아닌 사람이 2026년에 가입한 예탁금이에요. 소득세 5%와 농어촌특별세 0.9%를 떼고 지방소득세는 없어요. 만기가 2027년이어도 가입한 해 세율이 그대로예요.",
+  h: "비과세 대상이 아닌 사람이 2027년 이후 가입하는 예탁금이에요. 소득세 9%와 농어촌특별세 0.5%를 떼요. 비과세 대상자도 2029년 가입분은 5.9%, 2030년 이후 가입분은 9.5%예요.",
 };
 
 function pct(bp: number): string {
@@ -65,9 +78,9 @@ export function DepositCalculator({ initialAmount = 10_000_000 }: { initialAmoun
   const [s, set] = useUrlState({ a: initialAmount, m: 12, r: 3, t: "s" as MethodKey, x: "g" as TaxKey });
   const methodKey: MethodKey = s.t === "c" ? "c" : "s";
   const method: InterestMethod = methodKey === "c" ? "monthly" : "simple";
-  const taxKey: TaxKey = s.x === "p" || s.x === "m" || s.x === "n" || s.x === "e" ? s.x : "g";
-  const topKey: TopKey = taxKey === "n" ? "m" : taxKey;
-  const mutualKey: MutualKey = taxKey === "n" ? "n" : "m";
+  const taxKey: TaxKey = s.x === "p" || s.x === "m" || s.x === "n" || s.x === "h" || s.x === "e" ? s.x : "g";
+  const topKey: TopKey = taxKey === "n" || taxKey === "h" ? "m" : taxKey;
+  const mutualKey: MutualKey = taxKey === "n" || taxKey === "h" ? taxKey : "m";
   const taxType = TAX_BY_KEY[taxKey];
   const rule = TAX_RULES[taxType];
   const general = TAX_RULES.general;
@@ -157,14 +170,14 @@ export function DepositCalculator({ initialAmount = 10_000_000 }: { initialAmoun
           />
           {topKey === "m" ? (
             <SegmentedField<MutualKey>
-              label="상호금융 세율"
+              label="상호금융 세율 (가입 시기)"
               value={mutualKey}
               onChange={(x) => set({ x })}
-              options={(["m", "n"] as const).map((k) => ({
+              options={(["m", "n", "h"] as const).map((k) => ({
                 value: k,
                 label: (
                   <span className="block leading-tight">
-                    {k === "m" ? "비과세" : "저율과세"}
+                    {MUTUAL_LABEL[k]}
                     <span className="mt-0.5 block text-xs">{pct(TAX_RULES[TAX_BY_KEY[k]].totalBp)}</span>
                   </span>
                 ),

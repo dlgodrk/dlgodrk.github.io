@@ -7,9 +7,9 @@ export type CategoryId = "work" | "money" | "date" | "home" | "health" | "text";
 
 export const CATEGORIES: { id: CategoryId; name: string; blurb: string }[] = [
   { id: "work", name: "월급·근로", blurb: "실수령액, 퇴직금, 실업급여, 연차" },
-  { id: "money", name: "돈·금융", blurb: "대출 이자, 예금·적금, 부가세" },
+  { id: "money", name: "돈·금융", blurb: "대출 이자, 예금·적금, 복리, 자동차세, 부가세" },
   { id: "date", name: "날짜·나이", blurb: "만 나이, 디데이, 전역일, 출산 예정일" },
-  { id: "home", name: "집·부동산", blurb: "평수 변환, 중개보수" },
+  { id: "home", name: "집·부동산", blurb: "평수, 취득세, 청약 가점, 전월세 전환, 중개보수" },
   { id: "health", name: "건강", blurb: "BMI, 표준체중" },
   { id: "text", name: "글쓰기", blurb: "글자수, 원고지 매수" },
 ];
@@ -39,6 +39,12 @@ export const TOOLS: Tool[] = [
   { slug: "deposit", name: "예금 이자 계산기", summary: "목돈을 맡기면 붙는 세후 이자", category: "money", aliases: ["예금", "정기예금", "이자"], popularity: 60 },
   { slug: "vat", name: "부가세 계산기", summary: "공급가액과 부가세, 합계금액 서로 변환", category: "money", aliases: ["부가가치세", "공급가액", "VAT"], popularity: 50 },
   { slug: "percent", name: "퍼센트 계산기", summary: "몇 퍼센트인지, 몇 퍼센트 올랐는지 바로 계산", category: "money", aliases: ["백분율", "퍼센트", "증감률", "할인율"], popularity: 55 },
+  { slug: "compound-interest", name: "복리 계산기", summary: "원금과 매월 적립액이 복리로 얼마나 불어나는지", category: "money", aliases: ["복리", "투자 수익", "적립식", "72법칙", "수익률"], popularity: 62 },
+  { slug: "stock-average", name: "주식 평단가 계산기", summary: "추가 매수(물타기·불타기) 후 평균 단가와 손익", category: "money", aliases: ["물타기", "평단가", "평균단가", "불타기", "주식"], popularity: 66 },
+  { slug: "car-tax", name: "자동차세 계산기", summary: "배기량과 차령으로 연간 자동차세와 연납 할인액", category: "money", aliases: ["자동차세", "연납", "배기량", "전기차 세금"], popularity: 64 },
+  { slug: "subscription-score", name: "청약 가점 계산기", summary: "무주택 기간, 부양가족, 통장 가입 기간으로 84점 만점 가점", category: "home", aliases: ["청약", "가점", "주택청약", "무주택"], popularity: 72 },
+  { slug: "rent-conversion", name: "전월세 전환율 계산기", summary: "전세↔월세 전환 금액과 법정 전환율 상한", category: "home", aliases: ["전월세", "전환율", "월세 전환", "보증금"], popularity: 58 },
+  { slug: "acquisition-tax", name: "취득세 계산기", summary: "주택 매매 취득세와 지방교육세, 농어촌특별세", category: "home", aliases: ["취득세", "부동산 세금", "생애최초", "다주택"], popularity: 70 },
   { slug: "age", name: "만 나이 계산기", summary: "생년월일로 만 나이, 연 나이, 띠까지", category: "date", aliases: ["나이", "만나이", "몇살", "띠", "년생"], popularity: 95 },
   { slug: "dday", name: "디데이 계산기", summary: "날짜까지 남은 날, 지난 날, 며칠 뒤 날짜", category: "date", aliases: ["D-day", "디데이", "날짜", "며칠", "기념일", "100일", "수능", "크리스마스", "설날", "추석", "새해", "올해 남은 날"], popularity: 75 },
   { slug: "discharge", name: "전역일 계산기", summary: "입대일로 전역일과 복무율, 남은 날 계산", category: "date", aliases: ["군대", "전역", "입대", "복무", "사회복무요원"], popularity: 70 },

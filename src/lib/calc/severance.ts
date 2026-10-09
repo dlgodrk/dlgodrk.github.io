@@ -16,7 +16,9 @@
  * 퇴직소득세 — 소득세법 제14조⑥, 제48조, 제55조② (2023-01-01 이후 개정 없음, 2026 귀속 동일):
  * - 근속연수 = 근속월수(1개월 미만은 1개월)를 12로 나눠 올림 (1년 미만은 1년).
  * - 근속연수공제 → 환산급여 → 환산급여공제 → 과세표준 → 기본세율 → × 근속연수/12.
- * - 원 미만 절사, 원천징수세액 10원 미만 절사, 1,000원 미만 소액부징수, 지방소득세 10%.
+ * - 원 미만 절사. 원천징수 순서 (retirementWithholding): 소득세 10원 미만 절사 → 1,000원 미만이면 0
+ *   (소득세법 제86조 소액부징수) → 지방소득세 = 실제로 원천징수하는 소득세 × 10%, 10원 미만 절사
+ *   (지방세법 제103조의13①). 소득세를 걷지 않으면 지방소득세도 0원.
  *
  * Pure functions only: no React, no Date.now().
  */
@@ -182,8 +184,31 @@ export function basicIncomeTax(taxBase: number): number {
   return Math.floor((t * rate) / 100) - progressive;
 }
 
-/** 원천징수세액 1,000원 미만은 징수하지 않음 (소득세법 제86조). */
+/** 원천징수세액 1,000원 미만은 징수하지 않음 (소득세법 제86조 제1호). */
 export const SMALL_TAX_EXEMPTION = 1_000;
+
+export type RetirementWithholding = {
+  /** 원천징수 퇴직소득세 (10원 미만 절사, 1,000원 미만 소액부징수) */
+  incomeTax: number;
+  /** 지방소득세 = 원천징수하는 퇴직소득세 × 10% (10원 미만 절사) */
+  localTax: number;
+};
+
+/**
+ * 산출세액 → 원천징수세액. Order matters:
+ * 1. 소득세 10원 미만 절사 (국고금관리법 제47조).
+ * 2. 1,000원 미만이면 징수하지 않음 (소득세법 제86조 제1호 소액부징수).
+ * 3. 지방소득세 = 원천징수하는 소득세의 100분의 10 (지방세법 제103조의13①), 10원 미만 절사.
+ *    It is taken from the tax actually withheld, so a waived 소득세 means 지방소득세 0원 —
+ *    never 10% of the pre-waiver 산출세액 (e.g. 산출세액 800원 → 소득세 0원, 지방소득세 0원, not 80원).
+ */
+export function retirementWithholding(computedTax: number): RetirementWithholding {
+  const floored = Math.floor(Math.max(0, computedTax) / 10) * 10;
+  const incomeTax = floored < SMALL_TAX_EXEMPTION ? 0 : floored;
+  // incomeTax is a multiple of 10, so ÷ 100 × 10 is 10% floored to 10원 in integer arithmetic.
+  const localTax = Math.floor(incomeTax / 100) * 10;
+  return { incomeTax, localTax };
+}
 
 export type RetirementTax = {
   /** 퇴직소득금액 (= 퇴직금, 비과세 없음) */
@@ -202,8 +227,10 @@ export type RetirementTax = {
   computedTax: number;
   /** 원천징수 퇴직소득세 (10원 미만 절사, 1,000원 미만 소액부징수) */
   incomeTax: number;
-  /** 지방소득세 = 퇴직소득세 × 10% (10원 미만 절사) */
+  /** 지방소득세 = 원천징수하는 퇴직소득세 × 10% (10원 미만 절사). 소액부징수로 소득세가 0이면 0. */
   localTax: number;
+  /** 소액부징수 적용 여부 (산출세액은 있지만 1,000원 미만이라 걷지 않음) */
+  smallTaxWaived: boolean;
   total: number;
 };
 
@@ -217,9 +244,7 @@ export function retirementIncomeTax(income: number, years: number): RetirementTa
   const taxBase = Math.max(0, converted - convertedDeduction);
   const convertedTax = basicIncomeTax(taxBase);
   const computedTax = Math.floor((convertedTax * n) / 12);
-  let incomeTax = Math.floor(computedTax / 10) * 10;
-  if (incomeTax < SMALL_TAX_EXEMPTION) incomeTax = 0;
-  const localTax = Math.floor(incomeTax / 100) * 10;
+  const { incomeTax, localTax } = retirementWithholding(computedTax);
   return {
     income: i,
     years: n,
@@ -231,6 +256,7 @@ export function retirementIncomeTax(income: number, years: number): RetirementTa
     computedTax,
     incomeTax,
     localTax,
+    smallTaxWaived: computedTax > 0 && incomeTax === 0,
     total: incomeTax + localTax,
   };
 }

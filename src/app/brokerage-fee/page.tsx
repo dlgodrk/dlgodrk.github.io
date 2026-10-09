@@ -144,6 +144,8 @@ export default function BrokerageFeePage() {
   const MAN = 10_000;
   const ex1 = computeBrokerageFee({ target: "house", deal: "wolse", amount: 1_000 * MAN, monthlyRent: 50 * MAN })!;
   const ex2 = computeBrokerageFee({ target: "house", deal: "wolse", amount: 500 * MAN, monthlyRent: 40 * MAN })!;
+  // 한도액이 적용되는 월세 예시: 8,000만원 × 0.4% = 32만원 → 한도 30만원
+  const ex3 = computeBrokerageFee({ target: "house", deal: "wolse", amount: 5_000 * MAN, monthlyRent: 30 * MAN })!;
   const sale5 = maxFeeFor("house", "sale", 5 * 100_000_000);
 
   return (
@@ -234,6 +236,12 @@ export default function BrokerageFeePage() {
           <strong>보증금 500만원, 월세 40만원</strong>: ×100으로 더하면 {koreanWon(ex2.conversion!.base100)}이라 5천만원
           미만입니다. 그래서 500만원 + 40만원 × 70 = {koreanWon(ex2.dealAmount)}을 거래금액으로 하고, 0.5%를 곱해 상한은{" "}
           {koreanWon(ex2.maxFee)}입니다.
+        </li>
+        <li>
+          <strong>보증금 5,000만원, 월세 30만원</strong>: 5,000만원 + 30만원 × 100 = {koreanWon(ex3.dealAmount)}으로{" "}
+          {ex3.rule.bracket ? bracketLabel(ex3.rule.bracket) : ""} 구간입니다. {formatNumber(ex3.rule.rate, 1)}%를 곱하면{" "}
+          {koreanWon(ex3.rawMaxFee)}이지만 이 구간의 한도액이 {koreanWon(ex3.rule.cap ?? 0)}이라 상한은{" "}
+          <strong>{koreanWon(ex3.maxFee)}</strong>입니다.
         </li>
       </ul>
       <p>

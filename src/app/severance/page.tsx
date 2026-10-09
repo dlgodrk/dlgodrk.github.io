@@ -19,6 +19,7 @@ import { SeveranceCalculator } from "./SeveranceCalculator";
 const LAW_RETIRE = "https://www.law.go.kr/법령/근로자퇴직급여보장법";
 const LAW_LABOR = "https://www.law.go.kr/법령/근로기준법";
 const LAW_INCOME_TAX = "https://www.law.go.kr/법령/소득세법";
+const LAW_LOCAL_TAX = "https://www.law.go.kr/법령/지방세법";
 const MOEL_CALC = "https://www.moel.go.kr/retirementpayCal.do";
 
 /** Text cells in .data-table (which right-aligns and no-wraps by default). */
@@ -52,6 +53,10 @@ const exTax = ex.tax!;
 const TAX_EX_AMOUNT = 50_000_000;
 const TAX_EX_YEARS = 10;
 const taxEx = retirementIncomeTax(TAX_EX_AMOUNT, TAX_EX_YEARS);
+
+// 소액부징수 예시: 퇴직소득 170만원 · 근속 1년 → 산출세액 800원 → 소득세·지방소득세 0원
+const TAX_SMALL_AMOUNT = 1_700_000;
+const taxSmall = retirementIncomeTax(TAX_SMALL_AMOUNT, 1);
 
 // Description example: 월 300만원 · 5년
 const desc5y = severanceEstimate(3_000_000, 5);
@@ -279,14 +284,14 @@ export default function SeverancePage() {
               <th scope="row" style={WRAP_CELL}>
                 ⑦ 퇴직소득세
               </th>
-              <td style={WRAP_CELL}>환산산출세액 × 근속연수 ÷ 12, 10원 미만 절사</td>
+              <td style={WRAP_CELL}>환산산출세액 × 근속연수 ÷ 12, 10원 미만 절사. 1,000원 미만이면 0원(소액부징수)</td>
               <td>{formatWon(taxEx.incomeTax)}</td>
             </tr>
             <tr>
               <th scope="row" style={WRAP_CELL}>
                 ⑧ 지방소득세
               </th>
-              <td style={WRAP_CELL}>퇴직소득세 × 10%</td>
+              <td style={WRAP_CELL}>⑦에서 원천징수하는 퇴직소득세 × 10%, 10원 미만 절사</td>
               <td>{formatWon(taxEx.localTax)}</td>
             </tr>
             <tr className="is-current">
@@ -300,7 +305,10 @@ export default function SeverancePage() {
         </table>
       </div>
       <p className="note">
-        원천징수할 퇴직소득세가 1,000원 미만이면 걷지 않습니다(소액부징수). 근속연수공제와 기본세율 구간은 2023년 1월 개정 이후 그대로이며 2026년
+        원천징수할 퇴직소득세가 1,000원 미만이면 걷지 않습니다(<a href={`${LAW_INCOME_TAX}/제86조`}>소득세법 제86조</a> 소액부징수). 지방소득세는
+        실제로 원천징수하는 퇴직소득세의 10%라서(<a href={`${LAW_LOCAL_TAX}/제103조의13`}>지방세법 제103조의13</a>) 이때 지방소득세도 0원입니다. 예를
+        들어 퇴직금 {formatWon(TAX_SMALL_AMOUNT)}·근속 1년이면 산출세액이 {formatWon(taxSmall.computedTax)}이라 퇴직소득세와 지방소득세 모두
+        걷지 않습니다. 근속연수공제와 기본세율 구간은 2023년 1월 개정 이후 그대로이며 2026년
         귀속분에도 같은 표가 적용됩니다. 2022년 이전에 퇴직했다면 근속연수공제가 더 적은 개정 전 규정이 적용되므로 세금이 이 표와 다릅니다.
       </p>
 

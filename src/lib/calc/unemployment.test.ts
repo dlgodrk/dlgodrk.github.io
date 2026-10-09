@@ -6,14 +6,19 @@ import {
   claimWindow,
   dailyBenefit,
   dailyFloor,
+  dailyScheduledHours,
   eligibility,
+  floorHours,
+  fourWeekPaidHolidayHours,
   INSURED_PERIOD_OPTIONS,
   isInsuredPeriod,
+  monthlyAverageHours,
   proposalCap,
   proposalDaily,
   receivePeriod,
   sixDayMonthly,
   wagePeriod,
+  weeklyPaidHolidayHours,
   yearRule,
   type InsuredPeriod,
 } from "./unemployment";
@@ -55,6 +60,88 @@ describe("dailyFloor (최저구직급여일액)", () => {
   it("2025년 8시간 64,192원, 2027년 8시간 68,480원", () => {
     expect(dailyFloor(10_030, 8)).toBe(64_192);
     expect(dailyFloor(10_700, 8)).toBe(68_480);
+  });
+  it("4시간 간주 폐지 후 실제 시간: 2023년 최저임금 9,620원, 하루 2시간 → 15,392원 (종전 4시간 30,784원)", () => {
+    // 뉴시스 2023-12-10 '하루 1~3시간 단시간근로자 실업급여, 이달부터 확 줄어든다'
+    expect(dailyFloor(9_620, 2)).toBe(15_392);
+    expect(dailyFloor(9_620, 4)).toBe(30_784);
+  });
+  it("소수 시간은 올림해서 계산: 4.8시간 → 5시간분 41,280원", () => {
+    expect(dailyFloor(10_320, 4.8)).toBe(41_280);
+  });
+});
+
+// 고용보험법 시행규칙 제91조의2① (현행 고용노동부령 제479호, 2026-09-18 시행본) +
+// 급여기초임금일액 산정규정(고용노동부예규 제221호, 2023-12-01) 제3조②③ (law.go.kr admRulSeq=2100000232090).
+describe("floorHours (산정규정 제3조: 소수점 올림, 8시간 상한)", () => {
+  it("소수는 올림, 정수는 그대로", () => {
+    expect(floorHours(4.8)).toBe(5);
+    expect(floorHours(96 / 28)).toBe(4);
+    expect(floorHours(4)).toBe(4);
+    expect(floorHours(0.2)).toBe(1);
+  });
+  it("부동소수 오차로 정수가 올라가지 않음", () => {
+    expect(floorHours(4.000000000000001)).toBe(4);
+    expect(floorHours((24 * 8) / 48)).toBe(4);
+  });
+  it("8시간 이상은 8시간", () => {
+    expect(floorHours(8)).toBe(8);
+    expect(floorHours(7.2)).toBe(8);
+    expect(floorHours(10)).toBe(8);
+  });
+  it("0 이하나 숫자가 아니면 NaN", () => {
+    expect(floorHours(0)).toBeNaN();
+    expect(floorHours(-1)).toBeNaN();
+    expect(floorHours(NaN)).toBeNaN();
+  });
+});
+
+describe("주휴시간 (근로기준법 제18조③·제55조, 시행령 별표2)", () => {
+  it("주 15시간 미만은 0, 이상이면 주 소정 ÷ 40 × 8, 40시간에서 멈춤", () => {
+    expect([14, 15, 20, 24, 30, 40, 45].map(weeklyPaidHolidayHours)).toEqual([0, 3, 4, 4.8, 6, 8, 8]);
+  });
+  it("4주 합계는 4주 평균으로 판단", () => {
+    expect(fourWeekPaidHolidayHours(80)).toBe(16);
+    expect(fourWeekPaidHolidayHours(56)).toBe(0); // 평균 주 14시간
+    expect(fourWeekPaidHolidayHours(160)).toBe(32);
+  });
+});
+
+describe("dailyScheduledHours (시행규칙 제91조의2①)", () => {
+  it("일 단위: 그 시간, 소수는 올림, 8시간 상한", () => {
+    expect(dailyScheduledHours("day", 8)).toEqual({ basis: "day", scheduled: 8, paidHoliday: 0, average: 8, hours: 8 });
+    expect(dailyScheduledHours("day", 4.5)!.hours).toBe(5);
+    expect(dailyScheduledHours("day", 9)!.hours).toBe(8);
+  });
+  it("주 단위: 주 40시간 + 주휴 8 = 48 → 8시간, 주 35시간 + 주휴 7 = 42 → 7시간", () => {
+    expect(dailyScheduledHours("week", 40)).toMatchObject({ paidHoliday: 8, average: 8, hours: 8 });
+    expect(dailyScheduledHours("week", 35)).toMatchObject({ paidHoliday: 7, average: 7, hours: 7 });
+  });
+  it("주 3일 × 8시간(주 24시간): (24 + 4.8) ÷ 48 × 8 = 4.8 → 5시간, 8시간이 아님", () => {
+    const d = dailyScheduledHours("week", 24)!;
+    expect(d.paidHoliday).toBeCloseTo(4.8, 10);
+    expect(d.average).toBeCloseTo(4.8, 10);
+    expect(d.hours).toBe(5);
+  });
+  it("주 단위 여러 값: 20 → 4, 22.5 → 4.5 → 5, 17 → 3.4 → 4, 14 → 2.33 → 3, 12 → 2", () => {
+    expect([20, 22.5, 17, 14, 12].map((w) => dailyScheduledHours("week", w)!.hours)).toEqual([4, 5, 4, 3, 2]);
+  });
+  it("주마다 다름: 4주 80시간 → (80 + 16) ÷ 28 = 3.43 → 4시간, 4주 48시간(평균 12) → 48 ÷ 28 → 2시간", () => {
+    const d = dailyScheduledHours("fourWeek", 80)!;
+    expect(d.paidHoliday).toBe(16);
+    expect(d.average).toBeCloseTo(96 / 28, 10);
+    expect(d.hours).toBe(4);
+    expect(dailyScheduledHours("fourWeek", 48)).toMatchObject({ paidHoliday: 0, hours: 2 });
+    expect(dailyScheduledHours("fourWeek", 160)!.hours).toBe(7); // 192 ÷ 28 = 6.86, 조문 그대로
+  });
+  it("0이나 빈 값은 null", () => {
+    expect(dailyScheduledHours("week", 0)).toBeNull();
+    expect(dailyScheduledHours("week", NaN)).toBeNull();
+    expect(dailyScheduledHours("day", -3)).toBeNull();
+  });
+  it("월 단위: (월 소정 + 유급휴일) ÷ 209 × 8", () => {
+    expect(monthlyAverageHours(174, 35)).toBe(8);
+    expect(floorHours(monthlyAverageHours(100, 20))).toBe(5); // 120 × 8 ÷ 209 = 4.59
   });
 });
 
@@ -247,8 +334,31 @@ describe("calcUnemployment — 산정 과정", () => {
     expect(b.floor).toBe(34_240);
     expect(b.daily).toBe(60_000);
   });
+  it("회귀: 주 3일 × 8시간 단시간 근로자는 하한을 8시간이 아니라 5시간으로 계산 (41,280원, 66,048원 아님)", () => {
+    const hours = dailyScheduledHours("week", 24)!;
+    const r = calcUnemployment({
+      separation: ymd(2026, 10, 31),
+      monthlyWage: 1_500_000,
+      hours: hours.average,
+      period: "0",
+      over50OrDisabled: false,
+    })!;
+    expect(r.baseDaily).toBe(48_913); // 4,500,000 ÷ 92
+    expect(r.computedDaily).toBe(29_347);
+    expect(r.hours).toBe(5);
+    expect(r.floor).toBe(41_280);
+    expect(r.daily).toBe(41_280);
+    expect(r.total).toBe(41_280 * 120);
+  });
+  it("회귀: 일 단위 4.5시간은 올림해 5시간 하한", () => {
+    const r = calcUnemployment({ separation: ymd(2026, 10, 31), monthlyWage: 1_000_000, hours: 4.5, period: "0", over50OrDisabled: false })!;
+    expect(r.hours).toBe(5);
+    expect(r.floor).toBe(41_280);
+  });
   it("잘못된 입력은 null", () => {
     const base = { hours: 8, period: "1" as const, over50OrDisabled: false };
+    expect(calcUnemployment({ ...base, hours: 0, separation: ymd(2026, 10, 31), monthlyWage: 3_000_000 })).toBeNull();
+    expect(calcUnemployment({ ...base, hours: NaN, separation: ymd(2026, 10, 31), monthlyWage: 3_000_000 })).toBeNull();
     expect(calcUnemployment({ ...base, separation: ymd(2026, 10, 31), monthlyWage: NaN })).toBeNull();
     expect(calcUnemployment({ ...base, separation: ymd(2026, 10, 31), monthlyWage: 0 })).toBeNull();
     expect(calcUnemployment({ ...base, separation: ymd(2024, 12, 31), monthlyWage: 3_000_000 })).toBeNull();

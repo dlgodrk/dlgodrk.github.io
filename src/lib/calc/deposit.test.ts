@@ -8,9 +8,12 @@ import {
   grossInterestByDays,
   institutionsNeeded,
   interestTax,
+  isMutualTax,
   isValidInput,
   monthlyPayout,
   MUTUAL_EXEMPT_CAP,
+  MUTUAL_OPEN_PERIODS,
+  mutualTaxTypeByOpenYear,
   netInterestSimple,
   TABLE_MONTHS,
   TABLE_RATES,
@@ -81,10 +84,91 @@ describe("deposit: 이자소득세 (10원 미만 절사, 국고금 관리법 제
     expect(interestTax(300_000, "exempt").total).toBe(0);
   });
 
+  it("상호금융 2027년 이후 가입 9.5% = 소득세 9% + 농어촌특별세 0.5%, 지방소득세 없음", () => {
+    // 조세특례제한법 제89조의3①2호 (2027.1.1 이후 가입분 100분의 9, 개인지방소득세 부과하지 않음)
+    // 농어촌특별세법 제5조①2호·④: 감면세액(14% − 9% = 5%)의 10% = 0.5%
+    expect(interestTax(1_000_000, "mutualHigh")).toEqual({ incomeTax: 90_000, localTax: 0, ruralTax: 5_000, total: 95_000 });
+    // 123,456 × 9% = 11,111.04 → 11,110 / × 0.5% = 617.28 → 610 (세금우대와 같은 세율)
+    expect(interestTax(123_456, "mutualHigh")).toEqual(interestTax(123_456, "preferential"));
+  });
+
+  it("2026년 가입 3천만원, 연 3%, 1년: 농어촌특별세 0.9%까지 붙어 5.9%", () => {
+    // 이자 900,000 → 소득세 45,000 + 농어촌특별세 8,100 = 53,100 (소득세 5%만 보면 45,000으로 과소 계산)
+    const r = calcDeposit({ principal: 30_000_000, months: 12, ratePct: 3, method: "simple", taxType: "mutualLow" });
+    expect([r.grossInterest, r.incomeTax, r.localTax, r.ruralTax, r.totalTax]).toEqual([900_000, 45_000, 0, 8_100, 53_100]);
+    expect(r.netInterest).toBe(846_900);
+  });
+
+  it("농어촌특별세 = (14% − 적용 소득세율)의 10%, 지방소득세는 일반과세에만", () => {
+    for (const [type, r] of Object.entries(TAX_RULES)) {
+      if (type === "general" || type === "exempt") {
+        expect(r.ruralBp).toBe(0);
+        continue;
+      }
+      expect(r.local).toBe(false);
+      expect(r.ruralBp).toBe((1400 - r.incomeBp) / 10);
+    }
+    expect([TAX_RULES.mutual.totalBp, TAX_RULES.mutualLow.totalBp, TAX_RULES.mutualHigh.totalBp]).toEqual([140, 590, 950]);
+  });
+
   it("rule table totals match their parts", () => {
     for (const r of Object.values(TAX_RULES)) {
       expect(r.incomeBp + (r.local ? r.incomeBp / 10 : 0) + r.ruralBp).toBe(r.totalBp);
     }
+  });
+
+  it("rule names are distinct so labels never mix up 5.9% and 9.5%", () => {
+    const names = Object.values(TAX_RULES).map((r) => r.name);
+    expect(new Set(names).size).toBe(names.length);
+    expect(TAX_RULES.mutualLow.name).toContain("2026");
+    expect(TAX_RULES.mutualHigh.name).toContain("2027");
+  });
+});
+
+describe("deposit: 상호금융 예탁금 세율은 가입 연도로 정한다 (조특법 제89조의3, 2025.12.23 전문개정)", () => {
+  it("2025년까지 가입분은 누구나 비과세(1.4%)", () => {
+    expect(mutualTaxTypeByOpenYear(2020, false)).toBe("mutual");
+    expect(mutualTaxTypeByOpenYear(2025, false)).toBe("mutual");
+    expect(mutualTaxTypeByOpenYear(2025, true)).toBe("mutual");
+  });
+
+  it("비과세 대상이 아닌 사람: 2026년 가입 5.9%, 2027년 이후 가입 9.5% (제89조의3①1·2호)", () => {
+    expect(mutualTaxTypeByOpenYear(2026, false)).toBe("mutualLow");
+    expect(mutualTaxTypeByOpenYear(2027, false)).toBe("mutualHigh");
+    expect(mutualTaxTypeByOpenYear(2028, false)).toBe("mutualHigh");
+    expect(mutualTaxTypeByOpenYear(2035, false)).toBe("mutualHigh");
+  });
+
+  it("비과세 대상자(농·어·임업인 조합원, 총급여 7천만원 이하 등): 2026~2028년 가입 비과세, 2029년 5.9%, 2030년~ 9.5% (제89조의3②)", () => {
+    expect(mutualTaxTypeByOpenYear(2026, true)).toBe("mutual");
+    expect(mutualTaxTypeByOpenYear(2028, true)).toBe("mutual");
+    expect(mutualTaxTypeByOpenYear(2029, true)).toBe("mutualLow");
+    expect(mutualTaxTypeByOpenYear(2030, true)).toBe("mutualHigh");
+  });
+
+  it("가입 시기별 표의 행", () => {
+    expect(MUTUAL_OPEN_PERIODS.map((p) => mutualTaxTypeByOpenYear(p.year, true))).toEqual([
+      "mutual",
+      "mutual",
+      "mutual",
+      "mutualLow",
+      "mutualHigh",
+    ]);
+    expect(MUTUAL_OPEN_PERIODS.map((p) => mutualTaxTypeByOpenYear(p.year, false))).toEqual([
+      "mutual",
+      "mutualLow",
+      "mutualHigh",
+      "mutualHigh",
+      "mutualHigh",
+    ]);
+  });
+
+  it("세 가지 상호금융 유형 모두 3천만원 한도 특례", () => {
+    expect(isMutualTax("mutual")).toBe(true);
+    expect(isMutualTax("mutualLow")).toBe(true);
+    expect(isMutualTax("mutualHigh")).toBe(true);
+    expect(isMutualTax("preferential")).toBe(false);
+    expect(isMutualTax("general")).toBe(false);
   });
 });
 
@@ -128,6 +212,26 @@ describe("deposit: calcDeposit", () => {
     expect([r.incomeTax, r.localTax, r.ruralTax]).toEqual([129_000, 8_400, 8_100]);
     expect(r.netInterest).toBe(1_500_000 - 145_500);
     expect(r.comprehensiveGross).toBe(600_000);
+  });
+
+  it("상호금융 2027년 이후 가입(9.5%)도 3천만원까지만, 세금우대 9.5%와 달리 초과분은 일반과세", () => {
+    // 5천만원, 3%, 12개월: 3천만원 → 900,000 (소득세 81,000 + 농특세 4,500)
+    //                     2천만원 → 600,000 (소득세 84,000 + 지방소득세 8,400)
+    const r = calcDeposit({ principal: 50_000_000, months: 12, ratePct: 3, method: "simple", taxType: "mutualHigh" });
+    expect(r.mutualExcess).toBe(20_000_000);
+    expect([r.incomeTax, r.localTax, r.ruralTax, r.totalTax]).toEqual([165_000, 8_400, 4_500, 177_900]);
+    expect(r.netInterest).toBe(1_322_100);
+    expect(r.comprehensiveGross).toBe(600_000);
+    // 세금우대(옛 세금우대종합저축)는 한도 분할 없이 전액 9.5%
+    const pref = calcDeposit({ principal: 50_000_000, months: 12, ratePct: 3, method: "simple", taxType: "preferential" });
+    expect(pref.mutualExcess).toBe(0);
+    expect(pref.totalTax).toBe(142_500);
+    // 한도 이내면 두 유형의 세금이 같다
+    const capHigh = calcDeposit({ principal: MUTUAL_EXEMPT_CAP, months: 12, ratePct: 3, method: "simple", taxType: "mutualHigh" });
+    const capPref = calcDeposit({ principal: MUTUAL_EXEMPT_CAP, months: 12, ratePct: 3, method: "simple", taxType: "preferential" });
+    expect(capHigh.totalTax).toBe(85_500);
+    expect(capHigh.totalTax).toBe(capPref.totalTax);
+    expect(capHigh.comprehensiveGross).toBe(0);
   });
 
   it("금융소득종합과세 합산 이자는 일반과세 부분만", () => {
@@ -175,6 +279,8 @@ describe("deposit: 월 이자 지급식", () => {
     expect(monthlyPayout(20_000_000, 3, "mutual")).toEqual({ gross: 50_000, tax: 700, net: 49_300 });
     // 저율과세 3천만원, 3%: 75,000 × (5% → 3,750 → 3,750) + 0.9% (675 → 670)
     expect(monthlyPayout(30_000_000, 3, "mutualLow")).toEqual({ gross: 75_000, tax: 4_420, net: 70_580 });
+    // 2027년 이후 가입 3천만원, 3%: 75,000 × 9% = 6,750 + 0.5% (375 → 370) = 7,120
+    expect(monthlyPayout(30_000_000, 3, "mutualHigh")).toEqual({ gross: 75_000, tax: 7_120, net: 67_880 });
   });
 });
 

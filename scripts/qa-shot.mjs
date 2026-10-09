@@ -52,9 +52,16 @@ const send = (method, params = {}) =>
   });
 
 await send("Page.enable");
+await send("Runtime.enable");
+const consoleErrors = [];
+listeners.push((m) => {
+  if (m.method === "Runtime.consoleAPICalled" && (m.params.type === "error" || m.params.type === "warning")) consoleErrors.push(m.params.args.map((a) => a.value ?? a.description ?? "").join(" ").slice(0, 300));
+  if (m.method === "Runtime.exceptionThrown") consoleErrors.push("EXCEPTION " + (m.params.exceptionDetails.exception?.description ?? m.params.exceptionDetails.text).slice(0, 300));
+});
 await send("Emulation.setDeviceMetricsOverride", { width, height: 900, deviceScaleFactor: 1, mobile });
 const report = [];
 for (const p of paths) {
+  consoleErrors.length = 0;
   await send("Page.navigate", { url: base + p });
   for (let i = 0; i < 40; i++) {
     await new Promise((r) => setTimeout(r, 250));
@@ -81,11 +88,13 @@ for (const p of paths) {
   const v = evalRes.result.result.value;
   if (!process.env.VIEWPORT_ONLY) await send("Emulation.setDeviceMetricsOverride", { width, height: Math.min(v.h, 6000), deviceScaleFactor: 1, mobile });
   await new Promise((r) => setTimeout(r, 300));
-  const shot = await send("Page.captureScreenshot", { format: "png" });
   const name = (p.replace(/\//g, "_").replace(/^_|_$/g, "") || "home") + `-${width}.png`;
-  fs.writeFileSync(path.join(outDir, name), Buffer.from(shot.result.data, "base64"));
+  if (!process.env.NO_SHOT) {
+    const shot = await send("Page.captureScreenshot", { format: "png" });
+    fs.writeFileSync(path.join(outDir, name), Buffer.from(shot.result.data, "base64"));
+  }
   await send("Emulation.setDeviceMetricsOverride", { width, height: 900, deviceScaleFactor: 1, mobile });
-  report.push({ path: p, viewport: v.vw, scrollWidth: v.sw, overflow: v.sw > v.vw, offenders: v.wide, file: name });
+  report.push({ path: p, viewport: v.vw, scrollWidth: v.sw, overflow: v.sw > v.vw, offenders: v.wide, errors: [...consoleErrors], file: name });
 }
 console.log(JSON.stringify(report, null, 1));
 ws.close();

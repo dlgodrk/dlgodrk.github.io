@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  AGRI_TAX_TYPES,
   calcSavings,
   depositInterest,
   interestTax,
+  isAgriTax,
+  isTaxType,
   isValidSavingsInput,
   MAX_MONTHLY,
   periodLabel,
@@ -12,6 +15,7 @@ import {
   savingsInterestOfFirst,
   TABLE_PERIODS,
   TABLE_RATES,
+  TAX_TYPE_ORDER,
   TAX_TYPES,
 } from "./savings";
 
@@ -95,6 +99,89 @@ describe("interestTax", () => {
     expect(TAX_TYPES.general.rate).toBeCloseTo(0.154, 10);
     expect(TAX_TYPES.preferential.rate).toBeCloseTo(0.095, 10);
     expect(TAX_TYPES.agri.rate).toBeCloseTo(0.014, 10);
+    expect(TAX_TYPES.agri2026.rate).toBeCloseTo(0.059, 10);
+    expect(TAX_TYPES.agri2027.rate).toBeCloseTo(0.095, 10);
+  });
+  it("each non-general rate equals the sum of its lines (no 지방소득세 on 감면·분리과세 types)", () => {
+    for (const t of TAX_TYPE_ORDER) {
+      if (t === "general") continue;
+      const lines = TAX_TYPES[t].lines;
+      expect(lines.every((l) => l.ofPrevious === undefined && l.label !== "지방소득세")).toBe(true);
+      expect(lines.reduce((s, l) => s + l.bp, 0) / 10_000).toBeCloseTo(TAX_TYPES[t].rate, 10);
+    }
+  });
+});
+
+// 조세특례제한법 제89조의3 (2025.12.23 전문개정, 2026.1.1 시행): 세율은 예탁금에 가입한 해로 정해진다.
+//  ② 대상자(제88조의5②1호: 농협·수협·산림조합 조합원, 직전 과세기간 총급여 7천만원·종합소득금액 6천만원 이하)는
+//     2026~2028년 가입분 비과세 → 농어촌특별세 1.4% (agri)
+//  그 밖의 사람: 2026년 가입분 소득세 5%, 2027.1.1 이후 가입분 9%. 지방소득세 없음.
+//  농어촌특별세 = 감면받은 이자소득세의 10% (농어촌특별세법 제5조①): (14% − 5%) × 10% = 0.9%, (14% − 9%) × 10% = 0.5%
+describe("조합 예탁금 가입 시기별 세율", () => {
+  it("2026년 가입 5.9%: 소득세 5% + 농특세 0.9%, 각각 10원 미만 절사", () => {
+    const t = interestTax(130_000, "agri2026");
+    expect(t.lines.map((l) => [l.label, l.amount])).toEqual([
+      ["이자소득세", 6_500],
+      ["농어촌특별세", 1_170],
+    ]);
+    expect(t.total).toBe(7_670);
+    // 113,750 → 5,687.5 → 5,680 / 1,023.75 → 1,020
+    expect(interestTax(113_750, "agri2026").total).toBe(6_700);
+  });
+  it("2027년 이후 가입 9.5%는 옛 세금우대와 같은 세율", () => {
+    for (const interest of [130_000, 113_750, 58_499, 1_000]) {
+      expect(interestTax(interest, "agri2027")).toEqual(interestTax(interest, "preferential"));
+    }
+  });
+  it("월 50만원 · 12개월 · 연 4% · 2026년 가입 조합 예탁금", () => {
+    const r = calcSavings({ monthly: 500_000, months: 12, ratePct: 4, taxType: "agri2026" });
+    expect(r.interest).toBe(130_000);
+    expect(r.tax).toBe(7_670);
+    expect(r.afterTaxInterest).toBe(122_330);
+    expect(r.maturity).toBe(6_122_330);
+    expect(r.agriSplit).toBeNull();
+    // 같은 조건 비과세 대상(1.4%)은 1,820원, 일반과세는 20,020원
+    expect(calcSavings({ monthly: 500_000, months: 12, ratePct: 4, taxType: "agri" }).tax).toBe(1_820);
+    expect(calcSavings({ monthly: 500_000, months: 12, ratePct: 4 }).tax).toBe(20_020);
+  });
+  it("2026년 가입분도 3천만원까지만: 월 200만원 · 36개월 · 연 4%", () => {
+    const r = calcSavings({ monthly: 2_000_000, months: 36, ratePct: 4, taxType: "agri2026" });
+    // 1~15회차 이자 2,900,000 → 소득세 145,000 + 농특세 26,100
+    // 16~36회차 이자 1,540,000 → 소득세 215,600 + 지방소득세 21,560
+    expect(r.agriSplit).toEqual({ cappedInterest: 2_900_000, excessInterest: 1_540_000, excessPrincipal: 42_000_000 });
+    expect(r.taxLines.map((l) => [l.label, l.note, l.amount])).toEqual([
+      ["이자소득세", "3천만원까지 이자의 5%", 145_000],
+      ["농어촌특별세", "3천만원까지 이자의 0.9%", 26_100],
+      ["이자소득세", "초과분 이자의 14%", 215_600],
+      ["지방소득세", "초과분 소득세의 10%", 21_560],
+    ]);
+    expect(r.tax).toBe(408_260);
+    expect(r.afterTaxInterest).toBe(4_440_000 - 408_260);
+  });
+  it("2027년 이후 가입분도 3천만원 한도로 나눈다", () => {
+    const r = calcSavings({ monthly: 2_000_000, months: 36, ratePct: 4, taxType: "agri2027" });
+    // 2,900,000 → 261,000 + 14,500 / 1,540,000 → 215,600 + 21,560
+    expect(r.taxLines.map((l) => l.amount)).toEqual([261_000, 14_500, 215_600, 21_560]);
+    expect(r.tax).toBe(512_660);
+  });
+  it("옛 세금우대(preferential)는 조합 한도를 적용하지 않는다", () => {
+    const r = calcSavings({ monthly: 2_000_000, months: 36, ratePct: 4, taxType: "preferential" });
+    expect(r.agriSplit).toBeNull();
+    expect(r.tax).toBe(interestTax(4_440_000, "preferential").total);
+  });
+  it("orders and guards the tax types (URL ?x= values)", () => {
+    expect(AGRI_TAX_TYPES).toEqual(["agri", "agri2026", "agri2027"]);
+    for (const t of AGRI_TAX_TYPES) {
+      expect(isTaxType(t)).toBe(true);
+      expect(isAgriTax(t)).toBe(true);
+    }
+    for (const t of ["general", "preferential", "exempt"] as const) {
+      expect(isTaxType(t)).toBe(true);
+      expect(isAgriTax(t)).toBe(false);
+    }
+    expect(isTaxType("agri2028")).toBe(false);
+    expect(isTaxType("")).toBe(false);
+    expect(isTaxType("toString")).toBe(false);
   });
 });
 

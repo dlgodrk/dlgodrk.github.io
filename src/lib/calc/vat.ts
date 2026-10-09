@@ -11,15 +11,21 @@
  *   시행령 제88조 제2항·제3항)과 나목(제36조 제1항 제2호 간이과세자 = 직전 연도 공급대가 4,800만원 미만 또는 신규).
  * - 부가가치세법 제61조 제1항 제3호: 부동산임대업·과세유흥장소는 해당 업종 직전 연도 공급대가 4,800만원 이상이면 간이과세 배제.
  * - 부가가치세법 제62조 제1항: 과세유형 전환은 다음 해 7월 1일부터.
- * - 부가가치세법 제69조: 간이과세자 과세기간 공급대가 4,800만원 미만이면 납부의무 면제.
+ * - 부가가치세법 제36조 제1항 제2호 가목·제36조의2 제1항: 간이과세자 중 "직전 연도" 공급대가 4,800만원 미만(과 신규사업자)은
+ *   세금계산서 대신 영수증만 발급한다. 적용기간은 그 금액에 미달하거나 이상이 된 해의 다음 해 7월 1일 ~ 그다음 해 6월 30일.
+ *   (국세청 국세상담센터 간이과세 Q&A, 2026-10-09 확인)
+ * - 부가가치세법 제69조: 간이과세자 "해당 과세기간"(1~12월) 공급대가 4,800만원 미만이면 그 과세기간 납부의무 면제.
+ *   세금계산서 발급 기준(직전 연도)과 금액은 같지만 판단하는 해가 다르다.
  * - 부가가치세법 시행령 제109조 제1항: 간이과세 기준금액 1억 400만원 (2024.7.1. 시행).
  * - 부가가치세법 시행령 제111조 제2항: 업종별 부가가치율 15~40% (2021.7.1. 이후 공급분).
  *
  * 끝수 처리: 부가가치세법에는 세금계산서 세액의 원 미만 처리 방법이 따로 없다. 다만 국고금 관리법 제47조 제2항은
  * "국세의 과세표준액을 산정할 때 1원 미만의 끝수가 있으면 이를 계산하지 아니한다"고 정한다 (제1항은 납부 시 10원 미만).
  * - 공급가액 → 세액: 실무 관행대로 원 미만 절사(버림)를 기본으로 하고, 반올림 값을 함께 낸다.
- * - 합계 → 공급가액: 합계 × 100/110 을 원 미만 반올림한 값을 공급가액으로, 나머지를 세액으로 둔다
- *   (편의점·카드 영수증에서 1,000원이 909원 + 91원으로 찍히는 방식). 다른 두 방식도 낸다:
+ * - 합계 → 공급가액: 법정 방식이 없는 관행(convention)이다. 기본값은 합계 × 100/110 을 원 미만 반올림한 값을
+ *   공급가액으로, 나머지를 세액으로 둔다 (편의점·카드 영수증에서 1,000원이 909원 + 91원으로 찍히는 방식).
+ *   예: 합계 10,000원 → 반올림 9,091원 + 909원, 공급가액 절사 9,090원 + 910원. 화면은 다를 때 둘 다 보여 준다.
+ *   다른 두 방식도 낸다:
  *   세액을 합계 ÷ 11에서 절사("floor"), 공급가액(과세표준)을 합계 × 100/110에서 절사("supplyFloor", 국고금 관리법 제47조 제2항).
  *
  * 모든 금액은 원 단위 정수. 부동소수점 오차를 피하려고 비율은 정수 연산(÷10, ×10/11, ×‰)으로 계산한다.
@@ -112,8 +118,17 @@ export function supplyRangeForVat(vat: number): { min: number; max: number } {
 export const SIMPLIFIED_THRESHOLD = 104_000_000;
 /** 부동산임대업·과세유흥장소의 간이과세 기준: 해당 업종 직전 연도 공급대가 4,800만원 미만 (법 제61조 제1항 제3호). */
 export const SIMPLIFIED_THRESHOLD_RENTAL = 48_000_000;
-/** 납부의무 면제 기준: 해당 과세기간 공급대가 4,800만원 미만 (법 제69조). 세금계산서 발급의무 기준(직전 연도)도 같은 금액. */
+/**
+ * 납부의무 면제 기준: "해당 과세기간"(그 해 1~12월) 공급대가 4,800만원 미만 (법 제69조 제1항).
+ * 직전 연도 매출과 관계없이 그 해 매출로 판단한다.
+ */
 export const PAYMENT_EXEMPT_THRESHOLD = 48_000_000;
+/**
+ * 간이과세자 세금계산서 발급 기준: "직전 연도" 공급대가 4,800만원 이상 (법 제36조 제1항 제2호 가목).
+ * 미만이면 영수증만 발급하며, 적용기간은 다음 해 7월 1일 ~ 그다음 해 6월 30일 (법 제36조의2 제1항).
+ * 금액은 납부의무 면제 기준과 같지만 판단 연도가 달라 따로 둔다.
+ */
+export const TAX_INVOICE_THRESHOLD = 48_000_000;
 /** 예정부과 생략 기준: 징수할 금액 50만원 미만 (법 제66조). 일반과세자 예정고지도 같은 기준 (법 제48조 제3항). */
 export const INTERIM_NOTICE_MIN = 500_000;
 
@@ -144,19 +159,24 @@ export type SimplifiedIndustry = {
 };
 
 /**
- * 간이과세자 업종별 부가가치율 (부가가치세법 시행령 제111조 제2항, 2021.7.1. 이후 공급분).
- * 시행령 표의 40% 칸은 부동산임대업만 간이과세 기준이 달라(법 제61조 제1항 제3호) "pro"와 "rent"로 나눴다.
+ * 간이과세자 업종별 부가가치율 (부가가치세법 시행령 제111조 제2항, 2021.7.1. 이후 공급분 — 2026년 현행,
+ * 국세청 국세상담센터 간이과세 Q&A로 2026-10-09 확인). 시행령 표 6칸을 모두 담는다:
+ * 15% 소매업·재생용 재료수집 및 판매업·음식점업 / 20% 제조업·농업·임업 및 어업·소화물 전문 운송업 / 25% 숙박업 /
+ * 30% 건설업·운수 및 창고업(소화물 전문 운송업 제외)·정보통신업 / 40% 금융 및 보험 관련 서비스업·전문·과학 및
+ * 기술서비스업(인물사진 및 행사용 영상 촬영업 제외)·사업시설관리·사업지원 및 임대서비스업·부동산 관련 서비스업·
+ * 부동산임대업 / 30% 그 밖의 서비스업.
+ * 40% 칸은 부동산임대업만 간이과세 기준이 달라(법 제61조 제1항 제3호) "pro"와 "rent"로 나눴다.
  */
 export const SIMPLIFIED_INDUSTRIES: readonly SimplifiedIndustry[] = [
   {
     id: "retail",
-    label: "소매업·음식점업",
+    label: "소매업·음식점업·재생용 재료수집 판매업",
     full: "소매업, 재생용 재료수집 및 판매업, 음식점업",
     ratePct: 15,
   },
   {
     id: "mfg",
-    label: "제조업·농림어업·소화물 운송업",
+    label: "제조업·농림어업·소화물 전문 운송업",
     full: "제조업, 농업·임업 및 어업, 소화물 전문 운송업",
     ratePct: 20,
   },
@@ -170,7 +190,7 @@ export const SIMPLIFIED_INDUSTRIES: readonly SimplifiedIndustry[] = [
   { id: "service", label: "그 밖의 서비스업", full: "그 밖의 서비스업", ratePct: 30 },
   {
     id: "pro",
-    label: "전문·금융·임대 서비스업, 부동산 관련 서비스업",
+    label: "금융보험·전문과학기술·사업시설관리·부동산 관련 서비스업",
     full:
       "금융 및 보험 관련 서비스업, 전문·과학 및 기술서비스업(인물사진 및 행사용 영상 촬영업 제외), 사업시설관리·사업지원 및 임대서비스업, 부동산 관련 서비스업",
     ratePct: 40,
@@ -210,7 +230,7 @@ export type SimplifiedVatResult = {
   appliedCredit: number;
   /** 공제 후 납부세액 (면제 전) */
   taxAfterCredit: number;
-  /** 공급대가 4,800만원 미만 → 납부의무 면제 */
+  /** 이 과세기간(그 해) 공급대가 4,800만원 미만 → 그 해 납부의무 면제 (법 제69조). 직전 연도 매출과 무관. */
   exempt: boolean;
   /** 최종 납부할 세액 */
   payable: number;
@@ -236,7 +256,7 @@ export function simplifiedVat({ sales, ratePct, purchases = 0, cardSales = 0 }: 
   // 공제 합계가 납부세액을 넘으면 초과분은 없는 것으로 본다 (법 제63조 제6항).
   const appliedCredit = Math.min(purchaseCredit + cardCredit, grossTax);
   const taxAfterCredit = grossTax - appliedCredit;
-  const exempt = s < PAYMENT_EXEMPT_THRESHOLD;
+  const exempt = isPaymentExempt(s);
   return {
     grossTax,
     purchaseCredit,
@@ -282,11 +302,28 @@ export function simplifiedThreshold(rentalOrEntertainment = false): number {
 }
 
 /**
- * 과세유형 안내: 1년 공급대가를 다음 해의 "직전 연도 공급대가"로 본 간이과세 해당 여부.
- * 기준 이상이면 다음 해 7월 1일부터 일반과세 (법 제62조 제1항).
+ * 간이과세자 납부의무 면제 여부: 그 과세기간(1~12월) 공급대가가 4,800만원 미만인가 (법 제69조 제1항).
+ * 한 해 중간에 개업·폐업·전환한 경우 12개월로 환산한 금액을 넣는다 (같은 조 제3항).
  */
-export function simplifiedStatus(sales: number, rentalOrEntertainment = false): "exempt" | "simplified" | "general" {
-  if (sales >= simplifiedThreshold(rentalOrEntertainment)) return "general";
-  if (sales < PAYMENT_EXEMPT_THRESHOLD) return "exempt";
-  return "simplified";
+export function isPaymentExempt(salesThisPeriod: number): boolean {
+  return won(salesThisPeriod) < PAYMENT_EXEMPT_THRESHOLD;
+}
+
+/**
+ * 다음 해 과세유형과 증빙:
+ * - "general": 다음 해 7월 1일부터 일반과세 (기준 이상, 법 제62조 제1항).
+ * - "simplifiedInvoice": 간이과세 유지, 다음 해 7월 1일 ~ 그다음 해 6월 30일 세금계산서 발급 대상
+ *   (직전 연도 4,800만원 이상이라 제36조 제1항 제2호 가목의 영수증 발급 대상이 아님, 적용기간 제36조의2 제1항).
+ * - "simplifiedReceipt": 간이과세 유지, 같은 기간 영수증만 발급 (직전 연도 4,800만원 미만).
+ *
+ * 이 1년 공급대가를 다음 해의 "직전 연도 공급대가"로 보고 판단한다. 납부의무 면제는 여기서 정하지 않는다:
+ * 면제는 다음 해 자신의 매출로 따로 판단한다 (isPaymentExempt, 법 제69조).
+ */
+export type NextYearStatus = "general" | "simplifiedInvoice" | "simplifiedReceipt";
+
+export function simplifiedStatus(sales: number, rentalOrEntertainment = false): NextYearStatus {
+  const s = won(sales);
+  if (s >= simplifiedThreshold(rentalOrEntertainment)) return "general";
+  if (s < TAX_INVOICE_THRESHOLD) return "simplifiedReceipt";
+  return "simplifiedInvoice";
 }

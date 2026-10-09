@@ -205,7 +205,7 @@ export function LoanCalculator({
 
       {all && res ? (
         <div className="mt-10 grid gap-10">
-          <section aria-labelledby={cmpId}>
+          <section aria-labelledby={cmpId} className="min-w-0">
             <h2 id={cmpId} className="text-xl font-bold text-ink">
               상환방식별 비교
             </h2>
@@ -248,7 +248,7 @@ export function LoanCalculator({
             <ComparisonNote all={all} />
           </section>
 
-          <section aria-labelledby={schedId}>
+          <section aria-labelledby={schedId} className="min-w-0">
             <h2 id={schedId} className="text-xl font-bold text-ink">
               회차별 상환 스케줄
             </h2>

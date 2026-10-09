@@ -195,9 +195,12 @@ export default async function SavingsDetailPage({ params }: Props) {
       </p>
       <p>
         세금을 줄이는 방법도 금액이 커질수록 효과가 큽니다. 연 {HEADLINE_RATE}% 1년 기준으로 일반과세 세금은{" "}
-        {formatNumber(head.tax)}원이고, 상호금융 조합 예탁금(농어촌특별세 1.4%)이라면{" "}
-        {formatNumber(calcSavings({ monthly: won, months: 12, ratePct: HEADLINE_RATE, taxType: "agri" }).tax)}원, 비과세
-        상품이라면 0원입니다. 자세한 대상은 <Link href="/savings/">적금 이자 계산기</Link> 본문에 정리했습니다.
+        {formatNumber(head.tax)}원이고, 상호금융 조합 예탁금이라면 비과세 대상(농어촌특별세 1.4%)은{" "}
+        {formatNumber(calcSavings({ monthly: won, months: 12, ratePct: HEADLINE_RATE, taxType: "agri" }).tax)}원, 소득 기준을
+        넘는 사람이 2026년에 가입했다면(5.9%){" "}
+        {formatNumber(calcSavings({ monthly: won, months: 12, ratePct: HEADLINE_RATE, taxType: "agri2026" }).tax)}원, 비과세
+        상품이라면 0원입니다. 조합 예탁금 세율은 가입한 해와 조합원 여부·소득으로 정해지며, 자세한 대상은{" "}
+        <Link href="/savings/">적금 이자 계산기</Link> 본문에 정리했습니다.
       </p>
 
       <h2>다른 금액도 찾아보기</h2>

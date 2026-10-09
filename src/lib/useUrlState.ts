@@ -32,14 +32,16 @@ export function useUrlState<T extends Record<string, string | number | boolean>>
       const def = next[key];
       let parsed: string | number | boolean | undefined;
       if (typeof def === "number") {
-        const n = Number(raw);
-        parsed = Number.isFinite(n) ? n : undefined;
+        // An empty param ("k=") means the user cleared the box: keep it empty, not the default.
+        const n = raw === "" ? NaN : Number(raw);
+        parsed = raw === "" || Number.isFinite(n) ? n : undefined;
       } else if (typeof def === "boolean") {
         parsed = raw === "1" || raw === "true";
       } else {
         parsed = raw;
       }
-      if (parsed !== undefined && parsed !== def) {
+      const same = parsed === def || (Number.isNaN(parsed) && Number.isNaN(def));
+      if (parsed !== undefined && !same) {
         (next as Record<string, unknown>)[key as string] = parsed;
         changed = true;
       }
@@ -54,7 +56,9 @@ export function useUrlState<T extends Record<string, string | number | boolean>>
     const params = new URLSearchParams(window.location.search);
     for (const [key, value] of Object.entries(state)) {
       const def = defaultsRef.current[key];
-      if (value === def || (typeof value === "number" && !Number.isFinite(value))) params.delete(key);
+      const bothEmpty = typeof value === "number" && Number.isNaN(value) && typeof def === "number" && Number.isNaN(def);
+      if (value === def || bothEmpty) params.delete(key);
+      else if (typeof value === "number" && !Number.isFinite(value)) params.set(key, "");
       else params.set(key, typeof value === "boolean" ? (value ? "1" : "0") : String(value));
     }
     const qs = params.toString();

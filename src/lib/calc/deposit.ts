@@ -8,15 +8,21 @@
  *
  * 이자에 붙는 세금 (원천징수, 2026년 기준)
  *  - 일반과세 15.4%: 소득세 14% (소득세법 제129조①1호) + 지방소득세 = 소득세의 10% (지방세법 제103조의13)
- *  - 세금우대 9.5%: 소득세 9% + 농어촌특별세 0.5% (감면세액 5%의 10%, 농어촌특별세법 제5조①2호)
- *    세금우대종합저축은 2014년 12월 31일까지 가입분만 해당 (조세특례제한법 제89조①).
- *  - 상호금융 예탁금 (조세특례제한법 제89조의3, 2025.12.23 전문개정, 2026.1.1 시행), 1인당 3천만원까지:
- *    - 비과세 1.4%: 소득세 비과세 + 농어촌특별세 1.4% (감면세액 14%의 10%).
- *      2025.12.31까지 가입분, 그리고 제88조의5②1호 대상자(시행령으로 정하는 조합의 조합원,
- *      직전 과세기간 총급여 7천만원 이하·종합소득금액 6천만원 이하)의 2026~2028년 가입분.
- *    - 저율과세 5.9%: 그 밖의 사람이 2026년에 가입한 예탁금. 소득세 5% + 농어촌특별세 0.9%
- *      (감면세액 9%의 10%). 지방소득세 없음, 분리과세. 2027년 이후 가입분은 소득세 9%.
- *      세율은 이자를 받는 해가 아니라 가입한 해로 정해진다.
+ *  - 세금우대 9.5%: 소득세 9% + 농어촌특별세 0.5% (감면세액 5%의 10%, 농어촌특별세법 제5조①2호·④)
+ *    옛 세금우대종합저축(조세특례제한법 제89조①, 2014.12.31까지 가입분만, 신규 가입 불가)의 세율이고,
+ *    지금 새로 생기는 9.5%는 아래 상호금융 예탁금 2027년 이후 가입분(mutualHigh)이다.
+ *    이 선택지는 3천만원 한도를 나누지 않으므로 상호금융 예탁금은 mutual* 유형으로 계산한다.
+ *  - 상호금융 예탁금 (조세특례제한법 제89조의3, 2025.12.23 전문개정, 2026.1.1 시행), 1인당 3천만원까지.
+ *    세율은 이자를 받는 해가 아니라 예탁금에 가입한 날로 정해진다 (제89조의3① "가입함으로써 발생하는 이자소득").
+ *    지방소득세 없음, 분리과세(종합소득과세표준에 합산하지 않음).
+ *    - mutual 1.4%: 소득세 비과세 + 농어촌특별세 1.4% (감면세액 14%의 10%).
+ *      2025.12.31까지 가입분 전부, 그리고 제89조의3②의 비과세 대상자(제88조의5②1호: 시행령으로 정하는
+ *      조합의 조합원 = 농·어·임업인 조합원, 또는 직전 과세기간 총급여 7천만원 이하·종합소득금액 6천만원 이하)의
+ *      2026.1.1~2028.12.31 가입분.
+ *    - mutualLow 5.9%: 비과세 대상자가 아닌 사람의 2026년 가입분 (제89조의3①1호 100분의 5)
+ *      + 농어촌특별세 0.9% (감면세액 14% − 5% = 9%의 10%). 비과세 대상자도 2029년 가입분은 5%.
+ *    - mutualHigh 9.5%: 비과세 대상자가 아닌 사람의 2027.1.1 이후 가입분 (제89조의3①2호 100분의 9)
+ *      + 농어촌특별세 0.5%. 비과세 대상자는 2030년 이후 가입분부터.
  *  - 비과세 0%
  *  각 세목은 10원 미만을 버린다 (국고금 관리법 제47조①, 지방자치단체는 같은 조 ③ 준용).
  *  지방소득세는 "원천징수하는 소득세"(10원 미만을 버린 금액)의 10%다.
@@ -26,7 +32,7 @@
 import { formatNumber } from "@/lib/format";
 
 export type InterestMethod = "simple" | "monthly";
-export type TaxType = "general" | "preferential" | "mutual" | "mutualLow" | "exempt";
+export type TaxType = "general" | "preferential" | "mutual" | "mutualLow" | "mutualHigh" | "exempt";
 
 /** 소득세 원천징수세율 (이자소득, 소득세법 제129조①1호 라목): 14% = 1,400bp */
 export const INCOME_TAX_BP = 1400;
@@ -49,14 +55,22 @@ type TaxRule = {
 export const TAX_RULES: Record<TaxType, TaxRule> = {
   general: { name: "일반과세", totalBp: 1540, incomeBp: 1400, local: true, ruralBp: 0, detail: "소득세 14% + 지방소득세 1.4%" },
   preferential: { name: "세금우대", totalBp: 950, incomeBp: 900, local: false, ruralBp: 50, detail: "소득세 9% + 농어촌특별세 0.5%" },
-  mutual: { name: "상호금융 예탁금", totalBp: 140, incomeBp: 0, local: false, ruralBp: 140, detail: "소득세 비과세, 농어촌특별세 1.4%" },
+  mutual: { name: "상호금융 비과세", totalBp: 140, incomeBp: 0, local: false, ruralBp: 140, detail: "소득세 비과세, 농어촌특별세 1.4%" },
   mutualLow: {
-    name: "상호금융 저율과세",
+    name: "상호금융 2026년 가입",
     totalBp: 590,
     incomeBp: 500,
     local: false,
     ruralBp: 90,
     detail: "소득세 5% + 농어촌특별세 0.9%",
+  },
+  mutualHigh: {
+    name: "상호금융 2027년 이후 가입",
+    totalBp: 950,
+    incomeBp: 900,
+    local: false,
+    ruralBp: 50,
+    detail: "소득세 9% + 농어촌특별세 0.5%",
   },
   exempt: { name: "비과세", totalBp: 0, incomeBp: 0, local: false, ruralBp: 0, detail: "세금 없음" },
 };
@@ -69,8 +83,34 @@ export const MUTUAL_EXEMPT_CAP = 30_000_000;
 
 /** 상호금융 예탁금 특례(3천만원 한도)가 붙는 과세 구분인지. */
 export function isMutualTax(taxType: TaxType): boolean {
-  return taxType === "mutual" || taxType === "mutualLow";
+  return taxType === "mutual" || taxType === "mutualLow" || taxType === "mutualHigh";
 }
+
+/**
+ * 상호금융 예탁금(3천만원 이내)의 과세 구분을 가입 연도로 정한다 (조세특례제한법 제89조의3, 2026.1.1 시행).
+ * @param openYear 예탁금에 가입한 해
+ * @param exemptGroup 제89조의3② 비과세 대상자인지 (농·어·임업인 조합원, 또는 직전 과세기간
+ *   총급여 7천만원 이하·종합소득금액 6천만원 이하, 제88조의5②1호)
+ *
+ *  - 2025년까지 가입: 누구나 비과세(농어촌특별세 1.4%)
+ *  - 그 밖의 사람: 2026년 가입 5.9%, 2027년 이후 가입 9.5%
+ *  - 비과세 대상자: 2026~2028년 가입 비과세, 2029년 가입 5.9%, 2030년 이후 가입 9.5%
+ */
+export function mutualTaxTypeByOpenYear(openYear: number, exemptGroup: boolean): TaxType {
+  if (openYear <= 2025) return "mutual";
+  const lowYear = exemptGroup ? 2029 : 2026;
+  if (openYear < lowYear) return "mutual";
+  return openYear === lowYear ? "mutualLow" : "mutualHigh";
+}
+
+/** Rows of the 가입 시기별 상호금융 예탁금 세율 table on the main page. */
+export const MUTUAL_OPEN_PERIODS: { label: string; year: number }[] = [
+  { label: "2025년까지", year: 2025 },
+  { label: "2026년", year: 2026 },
+  { label: "2027~2028년", year: 2027 },
+  { label: "2029년", year: 2029 },
+  { label: "2030년 이후", year: 2030 },
+];
 
 /** 금융소득종합과세 기준: 연간 이자·배당소득 합계 2,000만원 초과 (소득세법 제14조③6호). */
 export const COMPREHENSIVE_TAX_THRESHOLD = 20_000_000;

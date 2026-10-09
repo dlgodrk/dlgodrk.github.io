@@ -231,7 +231,7 @@ function EligibleStatement({
   leave: number;
 }) {
   const { period, wage, tax } = r;
-  const smallExempt = tax !== null && tax.incomeTax === 0 && tax.computedTax > 0;
+  const smallExempt = tax?.smallTaxWaived === true;
   return (
     <Statement title="퇴직금 명세" caption={CAPTION}>
       <StatementHero
@@ -288,7 +288,11 @@ function EligibleStatement({
             }
             value={formatWon(tax.incomeTax)}
           />
-          <StatementRow label="지방소득세" note="퇴직소득세의 10%" value={formatWon(tax.localTax)} />
+          <StatementRow
+            label="지방소득세"
+            note={smallExempt ? "걷는 퇴직소득세가 없어 함께 0원" : "원천징수하는 퇴직소득세의 10%"}
+            value={formatWon(tax.localTax)}
+          />
         </StatementSection>
       ) : null}
       <StatementTotal label="세후 수령액 (약)" value={formatWon(r.net)} />

@@ -3,27 +3,34 @@
 import { CalcLayout, CalcNotice } from "@/components/CalcLayout";
 import { CheckboxField, DateField, NumberField, SegmentedField, SelectField, StepperField } from "@/components/fields";
 import { Statement, StatementFootnote, StatementHero, StatementRow, StatementSection } from "@/components/Statement";
-import { formatWon, koreanWon } from "@/lib/format";
+import { formatNumber, formatWon, koreanWon } from "@/lib/format";
 import { parseYMD, type YMD } from "@/lib/date";
 import {
+  ANNUAL_BASE_LAW_NO,
   ANNUAL_BASE_RULE_YEAR,
   calcUnemployment,
   claimWindow,
   dailyFloor,
+  dailyScheduledHours,
   eligibility,
   FIRST_YEAR,
   floorHours,
+  FOUR_WEEK_DIVISOR,
   INSURED_PERIOD_OPTIONS,
   insuredPeriodLabel,
   isInsuredPeriod,
   LAST_YEAR,
+  MAX_FLOOR_HOURS,
   MAX_MONTHLY_WAGE,
   proposalCap,
   proposalDaily,
   REQUIRED_INSURED_DAYS,
   sixDayMonthly,
   WAITING_DAYS,
+  WEEK_BASIS_HOURS,
   yearRule,
+  type DailyHours,
+  type HoursBasis,
   type InsuredPeriod,
   type UnemploymentResult,
 } from "@/lib/calc/unemployment";
@@ -32,6 +39,35 @@ import { useUrlState } from "@/lib/useUrlState";
 
 type AgeKey = "u" | "o";
 type ReasonKey = "i" | "v";
+/** 소정근로시간을 정한 단위: d 하루, w 1주, f 이직 전 4주 합계 */
+type BasisKey = "d" | "w" | "f";
+
+const BASIS: Record<BasisKey, HoursBasis> = { d: "day", w: "week", f: "fourWeek" };
+
+function h2(n: number): string {
+  return formatNumber(n, 2);
+}
+
+/** (24 + 주휴 4.8) ÷ 48 × 8 = 4.8 — 시행규칙 제91조의2① 계산식 */
+function hoursFormula(d: DailyHours): string {
+  const sum = d.paidHoliday > 0 ? `(${h2(d.scheduled)} + 주휴 ${h2(d.paidHoliday)})` : h2(d.scheduled);
+  const tail = d.basis === "week" ? ` ÷ ${WEEK_BASIS_HOURS} × 8` : ` ÷ ${FOUR_WEEK_DIVISOR}`;
+  return `${sum}${tail} = ${h2(d.average)}`;
+}
+
+/** 올림·8시간 상한을 어떻게 적용했는지 */
+function hoursRounding(d: DailyHours): string {
+  if (d.average > MAX_FLOOR_HOURS) return `${MAX_FLOOR_HOURS}시간 상한`;
+  if (d.hours !== d.average) return "소수점 올림";
+  return "그대로";
+}
+
+function hoursReading(basis: HoursBasis, n: number): string {
+  const d = dailyScheduledHours(basis, n);
+  if (!d) return "";
+  const avgWeek = basis === "fourWeek" ? `4주 평균 주 ${h2(n / 4)}시간 · ` : "";
+  return `${avgWeek}${hoursFormula(d)} → 하루 ${d.hours}시간으로 계산`;
+}
 
 const MIN_DATE = `${FIRST_YEAR}-01-01`;
 const MAX_DATE = `${LAST_YEAR}-12-31`;
@@ -54,34 +90,48 @@ function proposalNote(daily: number, cap: number, floor: number): string {
 }
 
 export function UnemploymentCalculator() {
-  // URL keys: d = 이직일, w = 월 평균 급여, h = 1일 소정근로시간, p = 가입기간, a = 나이(u 50세 미만 / o 이상),
+  // URL keys: d = 이직일, w = 월 평균 급여, u = 근로시간 단위(d 하루 / w 주 / f 4주 합계), h = 1일 소정근로시간,
+  // wh = 1주 소정근로시간, fh = 이직 전 4주 소정근로시간 합계, p = 가입기간, a = 나이(u 50세 미만 / o 이상),
   // x = 장애인, r = 이직 사유(i 비자발 / v 자발), j = 정당한 사유, e = 180일 충족
   const [s, set] = useUrlState({
     d: "2026-10-31",
     w: 3_000_000,
+    u: "d" as BasisKey,
     h: 8,
+    wh: 20,
+    fh: 80,
     p: "1" as InsuredPeriod,
     a: "u" as AgeKey,
-    x: false as boolean,
+    x: false,
     r: "i" as ReasonKey,
-    j: false as boolean,
-    e: true as boolean,
+    j: false,
+    e: true,
   });
   const period: InsuredPeriod = isInsuredPeriod(s.p) ? s.p : "1";
   const age: AgeKey = s.a === "o" ? "o" : "u";
   const reason: ReasonKey = s.r === "v" ? "v" : "i";
-  const hours = floorHours(s.h);
+  const basisKey: BasisKey = s.u === "w" || s.u === "f" ? s.u : "d";
+  const basis = BASIS[basisKey];
+  // The stepper shows whole hours 1–8; a decimal in the URL is rounded up like the 산정규정.
+  const dayHours = Number.isFinite(floorHours(s.h)) ? floorHours(s.h) : 1;
+  const hoursDetail = dailyScheduledHours(basis, basisKey === "d" ? dayHours : basisKey === "w" ? s.wh : s.fh);
+  const hours = hoursDetail?.hours ?? null;
   const over50OrDisabled = age === "o" || s.x;
 
   const separation = parseYMD(s.d);
   const rule = separation ? yearRule(separation.y) : null;
-  const r = separation
-    ? calcUnemployment({ separation, monthlyWage: s.w, hours, period, over50OrDisabled })
-    : null;
+  const r =
+    separation && hoursDetail
+      ? calcUnemployment({ separation, monthlyWage: s.w, hours: hoursDetail.average, period, over50OrDisabled })
+      : null;
   const elig = eligibility({ metInsuredDays: s.e, voluntary: reason === "v", justified: s.j });
-  const floorNow = rule ? dailyFloor(rule.minWage, hours) : null;
+  const floorNow = rule && hours !== null ? dailyFloor(rule.minWage, hours) : null;
   const capProposal = r?.projected ? proposalCap(r.rule.year) : null;
-  const dailyProposal = r?.projected ? proposalDaily(r.baseDaily, r.rule.year, hours) : null;
+  const dailyProposal = r?.projected ? proposalDaily(r.baseDaily, r.rule.year, r.hours) : null;
+  const floorHint =
+    rule && floorNow !== null && hours !== null
+      ? ` ${rule.year}년 이직, 하루 ${hours}시간이면 하한액이 ${formatWon(floorNow)}이에요.`
+      : "";
   // Hydration-safe: first render uses the build date, then the visitor's real today (KST).
   const { today } = useToday();
   const win = r ? claimWindow(r, today) : null;
@@ -114,19 +164,76 @@ export function UnemploymentCalculator() {
             ]}
             hint="기본급과 매달 받는 수당을 더한 세전 금액이에요. 1년 상여금이 있다면 12로 나눈 금액을 더해 넣어요."
           />
-          <StepperField
-            label="1일 소정근로시간"
-            value={hours}
-            onChange={(h) => set({ h })}
-            min={1}
-            max={8}
-            unit="시간"
-            hint={
-              rule && floorNow !== null
-                ? `근로계약서상 하루 근무시간이에요. 하한액이 이 시간에 비례해서 ${rule.year}년 ${hours}시간이면 하루 ${formatWon(floorNow)}이에요.`
-                : "근로계약서상 하루 근무시간이에요. 하한액이 이 시간에 비례해요."
-            }
+          <SegmentedField<BasisKey>
+            label="근로계약서의 근로시간"
+            value={basisKey}
+            onChange={(u) => set({ u })}
+            options={[
+              {
+                value: "d",
+                label: (
+                  <span className="block leading-tight">
+                    하루 단위
+                    <span className="mt-0.5 block text-xs">주 5·6일 같은 시간</span>
+                  </span>
+                ),
+              },
+              {
+                value: "w",
+                label: (
+                  <span className="block leading-tight">
+                    주 단위
+                    <span className="mt-0.5 block text-xs">주 4일 이하 등</span>
+                  </span>
+                ),
+              },
+              {
+                value: "f",
+                label: (
+                  <span className="block leading-tight">
+                    4주 합계
+                    <span className="mt-0.5 block text-xs">주마다 달라요</span>
+                  </span>
+                ),
+              },
+            ]}
+            hint="하한액은 이직 전 1일 소정근로시간에 비례해요. 주 5일 미만이거나 요일마다 시간이 다르면 주 근무시간으로 하루 시간을 다시 계산해요."
           />
+          {basisKey === "d" ? (
+            <StepperField
+              label="1일 소정근로시간"
+              value={dayHours}
+              onChange={(h) => set({ h })}
+              min={1}
+              max={MAX_FLOOR_HOURS}
+              unit="시간"
+              hint={`근로계약서상 하루 근무시간이에요. 4시간 30분처럼 끝수가 있으면 올려서 넣어요.${floorHint}`}
+            />
+          ) : basisKey === "w" ? (
+            <NumberField
+              label="1주 소정근로시간 (주휴 제외)"
+              value={s.wh}
+              onChange={(wh) => set({ wh })}
+              unit="시간"
+              decimals={1}
+              max={40}
+              reading={(n) => hoursReading("week", n)}
+              presets={[12, 15, 20, 24, 30].map((n) => ({ label: `${n}시간`, value: n }))}
+              hint={`예) 주 3일 × 8시간 = 24시간. 주 15시간 이상이면 주휴시간을 더해 ÷ 48 × 8로 하루 시간을 구하고, 소수점은 올려요.${floorHint}`}
+            />
+          ) : (
+            <NumberField
+              label="이직 전 4주 소정근로시간 합계 (주휴 제외)"
+              value={s.fh}
+              onChange={(fh) => set({ fh })}
+              unit="시간"
+              decimals={1}
+              max={160}
+              reading={(n) => hoursReading("fourWeek", n)}
+              presets={[40, 60, 80, 100, 120].map((n) => ({ label: `${n}시간`, value: n }))}
+              hint={`주마다 근무시간이 다르면 이직 전 4주 합계에 주휴시간을 더해 28로 나눠요. 소수점은 올려요.${floorHint}`}
+            />
+          )}
           <SelectField<InsuredPeriod>
             label="고용보험 가입기간"
             value={period}
@@ -203,7 +310,12 @@ export function UnemploymentCalculator() {
           <CalcNotice>
             {FIRST_YEAR}년 1월 1일부터 {LAST_YEAR}년 12월 31일 사이의 이직일만 계산할 수 있어요. {FIRST_YEAR - 1}년 이전에
             이직했다면 수급기간(이직 다음 날부터 12개월)이 이미 끝났고, {ANNUAL_BASE_RULE_YEAR}년 이직부터는 기초일액을 이직 전
-            1년간 보수로 계산하도록 법이 바뀌어요.
+            1년간 보수로 계산하도록 법이 바뀌어요(법률 {ANNUAL_BASE_LAW_NO}).
+          </CalcNotice>
+        ) : !hoursDetail ? (
+          <CalcNotice>
+            {basisKey === "w" ? "1주 소정근로시간을" : "이직 전 4주 소정근로시간 합계를"} 넣으면 하한액 기준이 되는 하루 시간을
+            계산해 드려요.
           </CalcNotice>
         ) : !r ? (
           <CalcNotice>퇴직 전 3개월의 월 평균 급여를 넣으면 하루 받는 금액과 총액을 계산해 드려요.</CalcNotice>
@@ -300,9 +412,16 @@ export function UnemploymentCalculator() {
                   note={r.capApplied ? `기초일액 상한 ${formatWon(r.rule.baseCap)}` : undefined}
                   value={formatWon(r.computedDaily)}
                 />
+                {hoursDetail.basis !== "day" ? (
+                  <StatementRow
+                    label="하한 기준 1일 시간"
+                    note={`${hoursFormula(hoursDetail)}, ${hoursRounding(hoursDetail)}`}
+                    value={`${r.hours}시간`}
+                  />
+                ) : null}
                 <StatementRow
                   label="상·하한 적용"
-                  note={`상한 ${formatWon(r.rule.dailyCap)}${r.projected ? "(현행)" : ""} · 하한 ${formatWon(r.floor)}(${hours}시간)`}
+                  note={`상한 ${formatWon(r.rule.dailyCap)}${r.projected ? "(현행)" : ""} · 하한 ${formatWon(r.floor)}(${r.hours}시간)`}
                   value={appliedLabel(r)}
                 />
               </StatementSection>
@@ -336,6 +455,10 @@ export function UnemploymentCalculator() {
               <StatementFootnote>
                 월급으로 어림한 값이에요. 실제 금액은 회사가 고용센터에 내는 이직확인서의 평균임금(상여금·연차수당 포함)과
                 통상임금 중 큰 금액으로 정해져요. 원 미만은 버렸어요.
+              </StatementFootnote>
+              <StatementFootnote>
+                하한 기준 하루 시간은 고용보험법 시행규칙 제91조의2와 급여기초임금일액 산정규정 제3조대로 계산했어요(소수점
+                올림, 최대 8시간). 유급휴일은 주휴일만 더했어요.
               </StatementFootnote>
               <StatementFootnote>
                 수급 기간이 지나면 남은 일수는 받을 수 없어요. 퇴사 후 바로 고용24에서 구직 신청부터 하세요.

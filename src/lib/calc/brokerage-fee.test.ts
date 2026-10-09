@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseNumber } from "@/lib/format";
+import { koreanWon, parseNumber } from "@/lib/format";
 import {
   agreedRatePresets,
   applyRate,
@@ -136,6 +136,74 @@ describe("brokerage-fee: 월세 환산 (시행규칙 제20조⑤1호)", () => {
     expect(computeBrokerageFee({ target: "house", deal: "wolse", amount: 1 * EOK, monthlyRent: 100 * MAN })!.maxFee).toBe(
       600_000,
     );
+  });
+  // Fact-check item 11 (docs/research/verifier-corrections.md). 서울시 조례 별표1 임대차
+  // "5천만원 이상 ~ 1억원 미만" 0.4%, 한도 30만원 (land.seoul.go.kr, 2026-10-09 확인).
+  // 일부 계산기 FAQ는 이 예를 0.3% → 24만원으로 잘못 적었다.
+  it("보증금 5,000만 + 월세 30만 → 8,000만 × 0.4% = 32만 → 한도 30만원", () => {
+    const r = computeBrokerageFee({ target: "house", deal: "wolse", amount: 5_000 * MAN, monthlyRent: 30 * MAN })!;
+    expect(r.conversion).toEqual({ base100: 8_000 * MAN, multiplier: 100, amount: 8_000 * MAN });
+    expect(r.dealAmount).toBe(8_000 * MAN);
+    expect(r.rule.rate).toBe(0.4);
+    expect(r.rule.cap).toBe(300_000);
+    expect(r.rule.label).toBe("주택 임대차 5,000만원 이상 1억원 미만");
+    expect(r.rawMaxFee).toBe(320_000);
+    expect(r.maxFee).toBe(300_000);
+    expect(r.capApplied).toBe(true);
+    expect(r.fee).toBe(300_000);
+    expect(r.total).toBe(300_000);
+    // Strings the main page's 월세 example renders (src/app/brokerage-fee/page.tsx, ex3)
+    expect(koreanWon(r.dealAmount)).toBe("8,000만원");
+    expect(bracketLabel(r.rule.bracket!)).toBe("5,000만원 이상 1억원 미만");
+    expect(koreanWon(r.rawMaxFee)).toBe("32만원");
+    expect(koreanWon(r.maxFee)).toBe("30만원");
+    // 부가세 10% 포함 330,000원
+    const v = computeBrokerageFee({
+      target: "house",
+      deal: "wolse",
+      amount: 5_000 * MAN,
+      monthlyRent: 30 * MAN,
+      includeVat: true,
+    })!;
+    expect(v.vat).toBe(30_000);
+    expect(v.total).toBe(330_000);
+    // 상한보다 낮은 협의 요율은 그대로: 8,000만 × 0.35% = 28만원
+    const a = computeBrokerageFee({
+      target: "house",
+      deal: "wolse",
+      amount: 5_000 * MAN,
+      monthlyRent: 30 * MAN,
+      agreedRate: 0.35,
+    })!;
+    expect(a.fee).toBe(280_000);
+    expect(a.maxFee).toBe(300_000);
+  });
+  it("월세 한도액 경계: 7,500만원까지는 요율대로, 넘으면 30만원", () => {
+    // 5,000만 + 25만 × 100 = 7,500만 × 0.4% = 30만원 정확히 (한도와 같아 한도 적용 아님)
+    const r = computeBrokerageFee({ target: "house", deal: "wolse", amount: 5_000 * MAN, monthlyRent: 25 * MAN })!;
+    expect(r.rawMaxFee).toBe(300_000);
+    expect(r.maxFee).toBe(300_000);
+    expect(r.capApplied).toBe(false);
+    // 9,999만원 환산도 30만원
+    expect(
+      computeBrokerageFee({ target: "house", deal: "wolse", amount: 4_999 * MAN, monthlyRent: 50 * MAN })!.maxFee,
+    ).toBe(300_000);
+    // 1억원이 되면 0.3% 구간, 한도 없음: 5,000만 + 50만 × 100 = 1억 → 30만원
+    const e = computeBrokerageFee({ target: "house", deal: "wolse", amount: 5_000 * MAN, monthlyRent: 50 * MAN })!;
+    expect(e.rule.rate).toBe(0.3);
+    expect(e.rule.cap).toBeNull();
+    expect(e.maxFee).toBe(300_000);
+  });
+  it("other 월세 vectors from the research notes", () => {
+    // 보증금 1억 + 월세 50만 = 1.5억 → 0.3% = 45만원 (0.4%·60만원은 오류)
+    expect(computeBrokerageFee({ target: "house", deal: "wolse", amount: 1 * EOK, monthlyRent: 50 * MAN })!.maxFee).toBe(
+      450_000,
+    );
+    // 보증금 1,000만 + 월세 30만: ×100 = 4,000만 < 5천만 → 1,000만 + 2,100만 = 3,100만 × 0.5% = 15.5만원
+    const s = computeBrokerageFee({ target: "house", deal: "wolse", amount: 1_000 * MAN, monthlyRent: 30 * MAN })!;
+    expect(s.conversion?.multiplier).toBe(70);
+    expect(s.dealAmount).toBe(3_100 * MAN);
+    expect(s.maxFee).toBe(155_000);
   });
   it("ignores monthly rent outside 월세 mode", () => {
     const r = computeBrokerageFee({ target: "house", deal: "jeonse", amount: 3 * EOK, monthlyRent: 100 * MAN })!;

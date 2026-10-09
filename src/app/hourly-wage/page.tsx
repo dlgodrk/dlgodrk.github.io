@@ -3,6 +3,7 @@ import { ToolShell } from "@/components/ToolShell";
 import { pageMetadata, type FaqItem } from "@/lib/seo";
 import { formatNumber } from "@/lib/format";
 import {
+  exactHoursLabel,
   freelanceTax,
   hoursLabel,
   MIN_WAGE_2026,
@@ -20,6 +21,8 @@ const p15 = payForWeeklyHours(15, MIN_WAGE_2026);
 const p14 = payForWeeklyHours(14, MIN_WAGE_2026);
 const p10 = payForWeeklyHours(10, MIN_WAGE_2026);
 const tax40 = freelanceTax(p40.monthlyGross);
+/** 주 20시간 pay if the 0.01h display value (104.29) were multiplied instead of the exact hours. */
+const p20ShownHoursPay = Math.round(MIN_WAGE_2026 * p20.monthlyHours);
 
 export const metadata: Metadata = pageMetadata({
   title: "시급 주휴수당 계산기 - 알바 월급·주급 계산 (2026 최저시급)",
@@ -109,15 +112,31 @@ export default function HourlyWagePage() {
       </p>
       <p className="formula">월 환산 시간 = (1주 소정근로시간 + 주휴시간) × 365 ÷ 7 ÷ 12</p>
       <p>
-        주 40시간이면 (40 + 8) × 365 ÷ 7 ÷ 12 = 208.57시간이고, 반올림한 <strong>209시간</strong>이 최저임금 월 환산액의 기준입니다.
-        이 계산기는 다른 근무시간도 같은 방식으로 시간 단위에서 반올림합니다. 주 20시간이면 (20 + 4) × 365 ÷ 7 ÷ 12 = 104.29시간, 즉
-        104시간이라 월 {formatNumber(p20.monthlyGross)}원입니다. 다만 월 50시간이 안 되는 짧은 근무는 1시간 단위 반올림만으로 월급이
-        1% 넘게 달라지므로 소수점 둘째 자리까지 씁니다. 주 10시간이면 월 {hoursLabel(p10.monthlyHours)}시간,{" "}
-        {formatNumber(p10.monthlyGross)}원입니다. 실제 월급은 그 달에 근무일이 4주치인지 5주치인지에 따라 조금씩 달라지므로, 주급으로
+        주 40시간이면 (40 + 8) × 365 ÷ 7 ÷ 12 = 208.57시간이고, 이를 정수로 맞춘 <strong>209시간</strong>이 최저임금 고시의 월
+        환산액 기준입니다. 최저임금법 시행령 제5조 제1항 제3호는 이 공식만 정하고 끝수 처리 방법은 정하지 않습니다. 그래서 이 계산기는
+        209시간을 주 40시간(주휴 8시간 포함)에만 쓰고, 다른 근무시간은 1시간 단위로 올리거나 반올림하지 않은 정확한 월 환산 시간에
+        시급을 곱한 뒤 원 미만만 반올림합니다. 화면과 표의 월 환산 시간은 소수 둘째 자리까지 보여 주는 값입니다.
+      </p>
+      <p>
+        주 20시간이면 (20 + 4) × 365 ÷ 7 ÷ 12 = {exactHoursLabel(p20.monthlyPayHours)}시간(약{" "}
+        {hoursLabel(p20.monthlyHours)}시간)이라 10,320 × {exactHoursLabel(p20.monthlyPayHours)} ={" "}
+        {formatNumber(MIN_WAGE_2026 * p20.monthlyPayHours, 2)}원, 월 <strong>{formatNumber(p20.monthlyGross)}원</strong>입니다. 주
+        15시간이면 (15 + 3) × 365 ÷ 7 ÷ 12 = 약 {hoursLabel(p15.monthlyHours)}시간이라 월{" "}
+        <strong>{formatNumber(p15.monthlyGross)}원</strong>, 주 10시간처럼 주휴가 없으면 10 × 365 ÷ 7 ÷ 12 = 약{" "}
+        {hoursLabel(p10.monthlyHours)}시간이라 월 {formatNumber(p10.monthlyGross)}원입니다.
+      </p>
+      <p>
+        주 20시간을 104시간이나 105시간으로 맞추거나, 209시간을 근무시간 비율대로 나눠 104.5시간으로 계산하는 곳도 있습니다. 이런 방식은
+        법정 공식과 월 수천 원 차이가 나고, 소수 둘째 자리로 반올림한 {hoursLabel(p20.monthlyHours)}시간을 곱해도{" "}
+        {formatNumber(p20ShownHoursPay)}원으로 {formatNumber(Math.abs(p20ShownHoursPay - p20.monthlyGross))}원 차이가 납니다. 급여명세서를
+        볼 때 어떤 기준인지 확인하는 것이 좋습니다. 실제 월급은 그 달에 근무일이 4주치인지 5주치인지에 따라 조금씩 달라지므로, 주급으로
         받는 알바라면 주급 합계를 기준으로 보는 것이 정확합니다.
       </p>
       <WeeklyHoursTable />
-      <p className="note">월급은 세전 금액이며, 주휴수당은 개근을 가정했습니다.</p>
+      <p className="note">
+        월급은 세전 금액이며, 주휴수당은 개근을 가정했습니다. 월 환산 시간은 주 40시간만 고시 기준 209시간이고 나머지는 소수 둘째
+        자리까지 표시한 값입니다. 월급은 반올림 전의 정확한 월 환산 시간에 시급을 곱해 원 단위로 반올림했습니다.
+      </p>
 
       <h2>2026·2027 최저임금</h2>
       <p>
@@ -194,6 +213,10 @@ export default function HourlyWagePage() {
           ,{" "}
           <a href="https://www.law.go.kr/법령/최저임금법시행령/제3조" target="_blank" rel="noopener noreferrer">
             시행령 제3조
+          </a>
+          ,{" "}
+          <a href="https://www.law.go.kr/법령/최저임금법시행령/제5조" target="_blank" rel="noopener noreferrer">
+            시행령 제5조 (월 환산 시간)
           </a>
         </li>
         <li>

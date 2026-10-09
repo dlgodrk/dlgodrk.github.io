@@ -3,7 +3,10 @@ import {
   CARD_CREDIT_ANNUAL_LIMIT,
   generalVatComparison,
   getSimplifiedIndustry,
+  isPaymentExempt,
+  PAYMENT_EXEMPT_THRESHOLD,
   SIMPLIFIED_INDUSTRIES,
+  TAX_INVOICE_THRESHOLD,
   simplifiedStatus,
   simplifiedThreshold,
   simplifiedVat,
@@ -88,6 +91,23 @@ describe("splitFromTotal (합계 → 공급가액)", () => {
     }
     expect(bad).toEqual([]);
   });
+  it("역산 끝수는 관행: 반올림과 절사가 다르면 둘 다 낼 수 있다 (fact-check item 10)", () => {
+    // 합계 10,000원 → 9,091/909 (공급가액 반올림) vs 9,090/910 (공급가액 절사)
+    expect(splitFromTotal(10_000, "round")).toEqual({ supply: 9_091, vat: 909, total: 10_000 });
+    expect(splitFromTotal(10_000, "supplyFloor")).toEqual({ supply: 9_090, vat: 910, total: 10_000 });
+    expect(totalSplitAlternative(10_000)?.split).toEqual({ supply: 9_090, vat: 910, total: 10_000 });
+    // 합계 1,000,000원 → 909,091/90,909 vs 909,090/90,910
+    expect(splitFromTotal(1_000_000)).toEqual({ supply: 909_091, vat: 90_909, total: 1_000_000 });
+    expect(splitFromTotal(1_000_000, "supplyFloor")).toEqual({ supply: 909_090, vat: 90_910, total: 1_000_000 });
+    // 합계 50,000원 → 45,454.54… : 반올림 45,455 / 절사 45,454
+    expect(splitFromTotal(50_000).supply).toBe(45_455);
+    expect(splitFromTotal(50_000, "supplyFloor").supply).toBe(45_454);
+    // 11의 배수면 방식과 관계없이 같다
+    for (const t of [33_000, 55_000, 1_100_000]) {
+      expect(splitFromTotal(t, "supplyFloor")).toEqual(splitFromTotal(t));
+      expect(splitFromTotal(t, "floor")).toEqual(splitFromTotal(t));
+    }
+  });
   it("totalSplitAlternative picks the differing method", () => {
     expect(totalSplitAlternative(10_000)).toEqual({ method: "supplyFloor", split: { supply: 9_090, vat: 910, total: 10_000 } });
     expect(totalSplitAlternative(1_000)).toEqual({ method: "floor", split: { supply: 910, vat: 90, total: 1_000 } });
@@ -124,6 +144,34 @@ describe("간이과세자 업종별 부가가치율 (시행령 제111조 제2항
     expect(getSimplifiedIndustry("lodging").ratePct).toBe(25);
     expect(getSimplifiedIndustry("unknown").id).toBe("retail");
     expect(new Set(SIMPLIFIED_INDUSTRIES.map((i) => i.id)).size).toBe(SIMPLIFIED_INDUSTRIES.length);
+  });
+  it("covers every industry in the statute table with its rate (fact-check item 9)", () => {
+    // 시행령 제111조 제2항 표 (2021.7.1. 이후 공급분, 2026년 현행). 국세청 국세상담센터 간이과세 Q&A와 대조.
+    const statute: [string, number][] = [
+      ["소매업", 15],
+      ["재생용 재료수집 및 판매업", 15],
+      ["음식점업", 15],
+      ["제조업", 20],
+      ["농업·임업 및 어업", 20],
+      ["소화물 전문 운송업", 20],
+      ["숙박업", 25],
+      ["건설업", 30],
+      ["운수 및 창고업", 30],
+      ["정보통신업", 30],
+      ["그 밖의 서비스업", 30],
+      ["금융 및 보험 관련 서비스업", 40],
+      ["전문·과학 및 기술서비스업", 40],
+      ["사업시설관리·사업지원 및 임대서비스업", 40],
+      ["부동산 관련 서비스업", 40],
+      ["부동산임대업", 40],
+    ];
+    for (const [name, rate] of statute) {
+      const hits = SIMPLIFIED_INDUSTRIES.filter((i) => i.full.split(/, /).some((part) => part.startsWith(name)));
+      expect(hits.map((h) => h.ratePct), name).toEqual([rate]);
+    }
+    // 소화물 전문 운송업은 운수업(30%)에서 빠져 20%, 인물사진·행사용 영상 촬영업은 전문서비스업(40%)에서 빠진다.
+    expect(getSimplifiedIndustry("construct").full).toContain("소화물 전문 운송업 제외");
+    expect(getSimplifiedIndustry("pro").full).toContain("인물사진 및 행사용 영상 촬영업 제외");
   });
   it("keeps 부동산임대업 separate because its 간이과세 기준 is 4,800만원 (법 제61조 제1항 제3호)", () => {
     const rent = getSimplifiedIndustry("rent");
@@ -179,11 +227,12 @@ describe("simplifiedVat (간이과세자 납부세액)", () => {
   });
 });
 
-describe("simplifiedStatus", () => {
-  it("uses 1억 400만원 and 4,800만원", () => {
-    expect(simplifiedStatus(30_000_000)).toBe("exempt");
-    expect(simplifiedStatus(48_000_000)).toBe("simplified");
-    expect(simplifiedStatus(103_999_999)).toBe("simplified");
+describe("simplifiedStatus (다음 해 과세유형·세금계산서)", () => {
+  it("uses 1억 400만원 for the type and 4,800만원 (직전 연도) for 세금계산서", () => {
+    expect(simplifiedStatus(30_000_000)).toBe("simplifiedReceipt");
+    expect(simplifiedStatus(47_999_999)).toBe("simplifiedReceipt");
+    expect(simplifiedStatus(48_000_000)).toBe("simplifiedInvoice");
+    expect(simplifiedStatus(103_999_999)).toBe("simplifiedInvoice");
     expect(simplifiedStatus(104_000_000)).toBe("general");
     // 부동산임대업·과세유흥장소는 4,800만원 기준
     expect(simplifiedStatus(50_000_000, true)).toBe("general");
@@ -193,10 +242,42 @@ describe("simplifiedStatus", () => {
     expect(simplifiedThreshold(rental)).toBe(48_000_000);
     expect(simplifiedStatus(60_000_000, rental)).toBe("general");
     expect(simplifiedStatus(48_000_000, rental)).toBe("general");
-    expect(simplifiedStatus(47_999_999, rental)).toBe("exempt");
-    // 같은 매출이라도 다른 40% 업종은 간이과세 유지
-    expect(simplifiedStatus(60_000_000, Boolean(getSimplifiedIndustry("pro").rentalThreshold))).toBe("simplified");
+    expect(simplifiedStatus(47_999_999, rental)).toBe("simplifiedReceipt");
+    // 같은 매출이라도 다른 40% 업종은 간이과세 유지 (세금계산서 발급 대상)
+    expect(simplifiedStatus(60_000_000, Boolean(getSimplifiedIndustry("pro").rentalThreshold))).toBe("simplifiedInvoice");
     expect(simplifiedThreshold()).toBe(104_000_000);
+  });
+});
+
+describe("4,800만원 두 기준은 판단 연도가 다르다 (fact-check item 9)", () => {
+  // 납부의무 면제: 해당 과세기간 공급대가 < 4,800만원 (법 제69조 제1항).
+  // 세금계산서 발급: 직전 연도 공급대가 ≥ 4,800만원 (법 제36조 제1항 제2호 가목, 제36조의2 제1항),
+  // 적용기간은 다음 해 7월 1일 ~ 그다음 해 6월 30일. 출처: 국세청 국세상담센터 간이과세 Q&A (2026-10-09 확인).
+  it("keeps the two thresholds as separate constants with the same amount", () => {
+    expect(PAYMENT_EXEMPT_THRESHOLD).toBe(48_000_000);
+    expect(TAX_INVOICE_THRESHOLD).toBe(48_000_000);
+  });
+  it("isPaymentExempt looks only at this period's sales", () => {
+    expect(isPaymentExempt(47_999_999)).toBe(true);
+    expect(isPaymentExempt(48_000_000)).toBe(false);
+    expect(isPaymentExempt(0)).toBe(true);
+  });
+  it("2025년 6,000만원 → 2026.7.~ 세금계산서 발급 대상이어도, 2026년 4,000만원이면 2026년분 납부 면제", () => {
+    expect(simplifiedStatus(60_000_000)).toBe("simplifiedInvoice"); // 2025 매출로 본 2026.7.1.~2027.6.30.
+    const y2026 = simplifiedVat({ sales: 40_000_000, ratePct: 15 });
+    expect(y2026.exempt).toBe(true);
+    expect(y2026.grossTax).toBe(600_000);
+    expect(y2026.payable).toBe(0);
+  });
+  it("2025년 4,000만원 → 영수증만 발급이어도, 2026년 6,000만원이면 2026년분은 낸다", () => {
+    expect(simplifiedStatus(40_000_000)).toBe("simplifiedReceipt");
+    const y2026 = simplifiedVat({ sales: 60_000_000, ratePct: 15 });
+    expect(y2026.exempt).toBe(false);
+    expect(y2026.payable).toBe(900_000);
+  });
+  it("never reports 납부 면제 as a next-year status", () => {
+    const statuses = [0, 10_000_000, 47_999_999, 48_000_000, 80_000_000, 104_000_000].map((s) => simplifiedStatus(s));
+    expect(statuses).not.toContain("exempt");
   });
 });
 

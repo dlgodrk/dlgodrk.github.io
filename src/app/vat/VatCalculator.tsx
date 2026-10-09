@@ -25,6 +25,7 @@ import {
   splitFromTotal,
   splitFromVat,
   supplyRangeForVat,
+  TAX_INVOICE_THRESHOLD,
   totalSplitAlternative,
   type SimplifiedIndustryId,
 } from "@/lib/calc/vat";
@@ -163,20 +164,45 @@ function GeneralResult({ mode, amount }: { mode: Mode; amount: number }) {
   if (mode === "t") {
     const r = splitFromTotal(value);
     const alt = totalSplitAlternative(value);
+    const supplyFloorAlt = alt?.method === "supplyFloor";
     return (
-      <Statement title="부가세 역산 명세" caption="합계 ÷ 1.1 · 원 미만 반올림">
-        <StatementHero label="공급가액" value={formatWon(r.supply)} sub={`부가세 ${formatWon(r.vat)}`} stamp="공급가" />
-        <StatementSection title="세금계산서에 적을 금액">
-          <StatementRow label="공급가액" note="합계 × 100/110" value={formatWon(r.supply)} emphasis />
+      <Statement title="부가세 역산 명세" caption="합계 ÷ 1.1 · 원 미만 반올림(관행)">
+        <StatementHero
+          label="공급가액"
+          value={formatWon(r.supply)}
+          sub={alt === null ? `부가세 ${formatWon(r.vat)}` : `부가세 ${formatWon(r.vat)} · 반올림 기준`}
+          stamp="공급가"
+        />
+        <StatementSection title={alt === null ? "세금계산서에 적을 금액" : "반올림 (카드 영수증 방식)"}>
+          <StatementRow
+            label="공급가액"
+            note={alt === null ? "합계 × 100/110" : "합계 × 100/110, 원 미만 반올림"}
+            value={formatWon(r.supply)}
+            emphasis
+          />
           <StatementRow label="세액" note="합계 − 공급가액" value={formatWon(r.vat)} />
         </StatementSection>
+        {alt === null ? null : (
+          <StatementSection title={supplyFloorAlt ? "절사 (공급가액 원 미만 버림)" : "절사 (세액 원 미만 버림)"}>
+            <StatementRow
+              label="공급가액"
+              note={supplyFloorAlt ? "합계 × 100/110, 원 미만 버림" : "합계 − 세액"}
+              value={formatWon(alt.split.supply)}
+            />
+            <StatementRow
+              label="세액"
+              note={supplyFloorAlt ? "합계 − 공급가액" : "합계 ÷ 11, 원 미만 버림"}
+              value={formatWon(alt.split.vat)}
+            />
+          </StatementSection>
+        )}
         <StatementTotal label="합계금액" value={formatWon(r.total)} />
         <StatementFootnote>
           {alt === null
             ? "합계가 11로 나누어떨어져서 끝수를 어떻게 처리하든 결과가 같아요."
-            : alt.method === "supplyFloor"
-              ? `공급가액의 원 미만을 버리면 공급가액 ${formatWon(alt.split.supply)}, 부가세 ${formatWon(alt.split.vat)}으로 1원 차이가 나요. 국세 과세표준의 1원 미만은 계산하지 않는다는 국고금 관리법 제47조 제2항을 따른 방식이에요. 위 값은 카드 영수증처럼 공급가액을 반올림한 결과예요. 거래처와 같은 방식으로 맞추면 돼요.`
-              : `부가세를 ‘합계 ÷ 11’에서 원 미만을 버려 구하면 공급가액 ${formatWon(alt.split.supply)}, 부가세 ${formatWon(alt.split.vat)}으로 1원 차이가 나요. 위 값은 공급가액의 원 미만을 버린 결과(국고금 관리법 제47조 제2항)와도 같아요. 거래처와 같은 방식으로 맞추면 돼요.`}
+            : supplyFloorAlt
+              ? "원 미만을 반올림할지 버릴지는 법에 정해진 방식이 없는 관행이라 1원 차이가 나요. 반올림 값은 카드 영수증 방식이고(세액을 합계 ÷ 11에서 버려도 같아요), 절사 값은 국세 과세표준의 1원 미만은 계산하지 않는다는 국고금 관리법 제47조 제2항에 맞춘 방식이에요. 거래처와 같은 방식으로 맞추면 돼요."
+              : "원 미만을 반올림할지 버릴지는 법에 정해진 방식이 없는 관행이라 1원 차이가 나요. 반올림 값은 공급가액의 원 미만을 버린 결과(국고금 관리법 제47조 제2항)와 같고, 세액을 합계 ÷ 11에서 버리면 위 절사 값이 돼요. 거래처와 같은 방식으로 맞추면 돼요."}
         </StatementFootnote>
       </Statement>
     );
@@ -203,7 +229,7 @@ function GeneralResult({ mode, amount }: { mode: Mode; amount: number }) {
   const r = splitFromSupply(value);
   const alt = splitFromSupply(value, "round");
   return (
-    <Statement title="부가세 계산 명세" caption="세율 10% · 원 미만 절사">
+    <Statement title="부가세 계산 명세" caption="세율 10% · 원 미만 절사(관행)">
       <StatementHero label="부가세 (10%)" value={formatWon(r.vat)} sub={`합계 ${formatWon(r.total)}`} stamp="부가세" />
       <StatementSection title="세금계산서에 적을 금액">
         <StatementRow label="공급가액" value={formatWon(r.supply)} />
@@ -310,7 +336,7 @@ function SimplifiedResult({ st }: { st: SimplifiedState }) {
         value={formatWon(r.payable)}
         sub={
           r.exempt
-            ? "매출 4,800만원 미만이라 납부 면제 (신고는 해야 해요)"
+            ? "그 해 매출 4,800만원 미만이라 납부 면제 (신고는 해야 해요)"
             : `매출의 ${formatPercent(r.payable / sales)}`
         }
         stamp="납부"
@@ -338,13 +364,13 @@ function SimplifiedResult({ st }: { st: SimplifiedState }) {
         {r.exempt && r.taxAfterCredit > 0 ? (
           <StatementRow
             label="납부의무 면제"
-            note={`매출 ${koreanWon(PAYMENT_EXEMPT_THRESHOLD)} 미만`}
+            note={`그 해 매출 ${koreanWon(PAYMENT_EXEMPT_THRESHOLD)} 미만 (직전 연도 매출과 무관)`}
             value={`−${formatWon(r.taxAfterCredit)}`}
           />
         ) : null}
       </StatementSection>
       <StatementTotal label="낼 세액" value={formatWon(r.payable)} />
-      <StatementSection title="비교와 과세유형">
+      <StatementSection title="비교와 다음 해 과세유형">
         <StatementRow
           label="일반과세자였다면"
           note={
@@ -355,22 +381,26 @@ function SimplifiedResult({ st }: { st: SimplifiedState }) {
           value={g.payable >= 0 ? formatWon(g.payable) : `환급 ${formatWon(-g.payable)}`}
         />
         <StatementRow
-          label="이 매출이면"
+          label="다음 해 7월부터"
           note={`${lowThreshold ? (rental ? "부동산임대업" : "과세유흥장소") : "간이과세"} 기준 ${koreanWon(threshold)}`}
-          value={
+          value={status === "general" ? "일반과세" : "간이과세 유지"}
+        />
+        <StatementRow
+          label="세금계산서 (다음 해 7월~)"
+          note={
             status === "general"
-              ? "다음 해 7월부터 일반과세"
-              : status === "exempt"
-                ? "간이과세, 납부 면제"
-                : "간이과세 유지"
+              ? "일반과세자는 발급"
+              : `간이과세자는 직전 연도 매출 ${koreanWon(TAX_INVOICE_THRESHOLD)} 이상이면 발급`
           }
+          value={status === "simplifiedReceipt" ? "영수증만 발급" : "발급 대상"}
         />
       </StatementSection>
       <StatementFootnote>
-        가산세, 7월에 미리 낸 예정부과세액, 전자세금계산서 발급세액공제는 빼고 어림했어요. 카드 발행세액공제 1.3%·연
-        1,000만원 한도는 2026년 12월 31일 공급분까지이고, 직전 연도 매출이 4,800만원 이상인 간이과세자와 일반과세자는
-        소매·음식·숙박업처럼 주로 소비자를 상대하는 업종만 받을 수 있어요. 과세유형은 올해 매출이 다음 해의 ‘직전 연도
-        매출’이 된다고 보고 판단했어요.
+        가산세, 7월에 미리 낸 예정부과세액, 전자세금계산서 발급세액공제는 빼고 어림했어요. 납부 면제는 그 해 매출로,
+        다음 해 과세유형과 세금계산서 발급 여부는 이 매출을 다음 해의 ‘직전 연도 매출’로 보고 판단했어요(다음 해 7월
+        1일~그다음 해 6월 30일 적용). 카드 발행세액공제 1.3%·연 1,000만원 한도는 2026년 12월 31일 공급분까지예요.
+        소매·음식·숙박업처럼 주로 소비자를 상대하는 업종은 영수증 발급 대상이고, 직전 연도 매출이 4,800만원 이상인
+        간이과세자와 일반과세자는 이런 업종만 카드 발행세액공제를 받아요.
       </StatementFootnote>
     </Statement>
   );

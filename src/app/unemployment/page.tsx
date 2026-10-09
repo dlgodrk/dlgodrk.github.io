@@ -9,6 +9,8 @@ import {
   calcUnemployment,
   dailyBenefit,
   dailyFloor,
+  dailyScheduledHours,
+  ANNUAL_BASE_LAW_NO,
   ANNUAL_BASE_RULE_YEAR,
   INSURED_PERIOD_OPTIONS,
   proposalCap,
@@ -73,10 +75,24 @@ const maxTotal2026 = CAP_2026 * MAX_DAYS;
 /** 짧은 달 말일 이직 예시: 2026-04-30 → 02-01~04-30, 89일 */
 const APR30_PERIOD = wagePeriod(ymd(2026, 4, 30));
 
+/** 주 단위로 정한 단시간 근로자 (시행규칙 제91조의2①2호). 주 3일 × 8시간 = 24시간 → 4.8 → 5시간. */
+const WEEKLY_ROWS: { weekly: number; who?: string }[] = [
+  { weekly: 12, who: "주 2일 × 6시간" },
+  { weekly: 15 },
+  { weekly: 20, who: "주 5일 × 4시간" },
+  { weekly: 24, who: "주 3일 × 8시간" },
+  { weekly: 30 },
+  { weekly: 32, who: "주 4일 × 8시간" },
+  { weekly: 35 },
+  { weekly: 40, who: "주 5일 × 8시간" },
+];
+const THREE_DAY = dailyScheduledHours("week", 24)!;
+const THREE_DAY_FLOOR_2026 = dailyFloor(R2026.minWage, THREE_DAY.hours);
+
 const FAQ: FaqItem[] = [
   {
     q: "실업급여는 하루 최대 얼마까지 받을 수 있나요?",
-    a: `2026년에 이직했다면 하루 ${formatNumber(CAP_2026)}원이 상한입니다. 30일로 치면 ${formatNumber(CAP_2026 * 30)}원이고, 최장 270일을 받으면 ${formatNumber(maxTotal2026)}원입니다. 반대로 하루 8시간 일했다면 월급이 적어도 하루 ${formatNumber(FLOOR_2026)}원(하한액)은 받습니다.`,
+    a: `2026년에 이직했다면 하루 ${formatNumber(CAP_2026)}원이 상한입니다. 30일로 치면 ${formatNumber(CAP_2026 * 30)}원이고, 최장 270일을 받으면 ${formatNumber(maxTotal2026)}원입니다. 반대로 주 5일 하루 8시간 일했다면 월급이 적어도 하루 ${formatNumber(FLOOR_2026)}원(하한액)은 받습니다. 주 3일 근무처럼 소정근로시간이 짧으면 하한액도 그만큼 낮아집니다.`,
   },
   {
     q: "자진 퇴사해도 실업급여를 받을 수 있나요?",
@@ -176,6 +192,8 @@ export default function UnemploymentPage() {
         기초일액 = 이직 전 3개월 임금총액 ÷ 그 3개월의 총일수
         <br />
         1일 구직급여 = 기초일액(상한 {formatNumber(R2026.baseCap)}원) × 60%, 단 하한 미만이면 하한
+        <br />
+        하한 = 최저임금(시급) × 이직 전 1일 소정근로시간(최대 8시간) × 80%
         <br />총 수급액 = 1일 구직급여 × 소정급여일수
       </p>
       <p>
@@ -227,8 +245,8 @@ export default function UnemploymentPage() {
       <h2>2026년 실업급여 상한액과 하한액</h2>
       <p>
         2026년 1월 1일 이후 이직한 사람은 기초일액 상한이 {formatNumber(R2026.baseCap)}원으로 올라 하루 상한액이{" "}
-        {formatNumber(CAP_2026)}원입니다(종전 {formatNumber(R2025.dailyCap)}원). 하한액은 이직일 당시 최저임금 시급에 1일
-        소정근로시간(최대 8시간)을 곱하고 80%를 적용해 정해지므로, 8시간 근로자는 10,320원 × 8 × 80% ={" "}
+        {formatNumber(CAP_2026)}원입니다(종전 {formatNumber(R2025.dailyCap)}원). 하한액은 이직일 당시 최저임금 시급에 이직 전 1일
+        소정근로시간(최대 8시간)을 곱하고 80%를 적용해 정해지므로, 하루 8시간 근로자는 10,320원 × 8 × 80% ={" "}
         {formatNumber(FLOOR_2026)}원입니다. 그래서 하루 8시간 근로자는 기초일액이 {formatNumber(FLOOR_BASE_2026)}원보다 적으면
         하한을, {formatNumber(R2026.baseCap)}원을 넘으면 상한을 받고, 그 사이일 때만 기초일액의 60%를 받습니다.
       </p>
@@ -256,7 +274,8 @@ export default function UnemploymentPage() {
       </div>
       <p>
         30일로 환산하면 2026년 상한은 월 {formatNumber(CAP_2026 * 30)}원, 하한은 월 {formatNumber(FLOOR_2026 * 30)}원입니다.
-        하루 소정근로시간이 8시간보다 짧으면 하한도 그만큼 줄어듭니다.
+        하루 소정근로시간이 8시간보다 짧으면 하한도 그만큼 줄어듭니다. 주 5일 미만으로 일했다면 아래처럼 주
+        근로시간으로 하루 시간을 다시 계산합니다.
       </p>
       <div className="table-wrap">
         <table className="data-table">
@@ -279,6 +298,71 @@ export default function UnemploymentPage() {
           </tbody>
         </table>
       </div>
+
+      <h2 id="part-time-hours">주 3일·단시간 근로자의 하한액: 1일 소정근로시간 계산법</h2>
+      <p>
+        하한액의 기준인 이직 전 1일 소정근로시간은 근로계약서의 하루 근무시간을 그대로 쓰는 것이 아닙니다. 고용보험법 제45조
+        제4항의 위임에 따라 시행규칙 제91조의2 제1항이 근로시간을 정한 방식별로 계산식을 두고 있고, 2023년 1월 1일 이후
+        이직한 사람부터 적용됩니다.
+      </p>
+      <ul>
+        <li>
+          <strong>하루 단위</strong>(주 5일이나 6일을 매일 같은 시간으로 정한 경우): 그 시간
+        </li>
+        <li>
+          <strong>주 단위</strong>: (주 소정근로시간 + 그 주의 유급휴일 시간) ÷ 48시간 × 8시간
+        </li>
+        <li>
+          <strong>월 단위</strong>: (월 소정근로시간 + 그 달의 유급휴일 시간) ÷ 209시간 × 8시간
+        </li>
+        <li>
+          <strong>주마다 근로시간이 다른 경우</strong>: (이직 전 4주의 소정근로시간 + 그 기간 유급휴일 시간) ÷ 28
+        </li>
+      </ul>
+      <p>
+        이렇게 구한 값이 소수이면 올림해 정수로 만들고, 8시간 이상이면 8시간으로 봅니다(급여기초임금일액 산정규정 제3조).
+        예전에는 3시간 이하를 4시간으로 쳐 주었지만, 2023년 12월 1일 이후 이직한 사람부터는 1~3시간도 실제 시간대로
+        계산합니다. 예를 들어 하루 8시간씩 주 3일 일했다면 주 24시간에 주휴시간{" "}
+        {formatNumber(THREE_DAY.paidHoliday, 1)}시간을 더해 ÷ 48 × 8 = {formatNumber(THREE_DAY.average, 1)}시간, 올림해{" "}
+        {THREE_DAY.hours}시간입니다. 그래서 2026년 하한은 하루 {formatNumber(FLOOR_2026)}원이 아니라{" "}
+        <strong>{formatNumber(THREE_DAY_FLOOR_2026)}원</strong>입니다.
+      </p>
+      <div className="table-wrap">
+        <table className="data-table">
+          <caption>주 단위로 정한 경우, 1주 소정근로시간별 하한액</caption>
+          <thead>
+            <tr>
+              <th scope="col">1주 소정근로시간</th>
+              <th scope="col">주휴시간</th>
+              <th scope="col">1일 소정근로시간</th>
+              <th scope="col">2026년 하한</th>
+              <th scope="col">2027년 하한</th>
+            </tr>
+          </thead>
+          <tbody>
+            {WEEKLY_ROWS.map(({ weekly, who }) => {
+              const d = dailyScheduledHours("week", weekly)!;
+              return (
+                <tr key={weekly} className={weekly === 24 ? "is-current" : undefined}>
+                  <td>
+                    {weekly}시간{who ? ` (${who})` : ""}
+                  </td>
+                  <td>{formatNumber(d.paidHoliday, 1)}시간</td>
+                  <td>
+                    {d.hours === d.average ? `${d.hours}시간` : `${formatNumber(d.average, 2)} → ${d.hours}시간`}
+                  </td>
+                  <td>{formatWon(dailyFloor(R2026.minWage, d.hours))}</td>
+                  <td>{formatWon(dailyFloor(R2027.minWage, d.hours))}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <p className="note">
+        주휴시간은 1주 소정근로시간이 15시간 이상일 때 주 소정근로시간 ÷ 40 × 8로 넣었습니다. 실제 인정 시간은 회사가
+        이직확인서에 적은 소정근로시간을 바탕으로 고용센터가 정합니다.
+      </p>
 
       <h2>소정급여일수: 며칠 동안 받나</h2>
       <p>
@@ -363,14 +447,16 @@ export default function UnemploymentPage() {
       <h2>{ANNUAL_BASE_RULE_YEAR}년 이직부터 기초일액은 1년 보수 기준 (법 개정 완료)</h2>
       <p>
         기초일액을 이직 전 3개월 평균임금 대신 1년간의 보수로 계산하는 방식은 개편안이 아니라 이미 법률로 정해졌습니다. 2026년
-        3월 17일 공포된 고용보험법 일부개정법률(법률 제21473호)은 제45조를 ‘급여의 기초가 되는 보수일액’으로 바꿔, 마지막
-        이직일 전 1년간의 보수를 바탕으로 기초일액을 정하도록 했습니다. 이 조항은 {ANNUAL_BASE_RULE_YEAR}년 1월 1일부터
-        시행됩니다(부칙 제1조).
+        3월 17일 공포된 고용보험법 일부개정법률(법률 {ANNUAL_BASE_LAW_NO})은 제45조 제1항을 고쳐, 마지막 이직일 전 1년간
+        신고된 월 보수를 모두 더해 대통령령으로 정하는 산정기간의 총 일수로 나눈 금액(보수일액)을 기초일액으로 하도록
+        했습니다. 이 조항은 {ANNUAL_BASE_RULE_YEAR}년 1월 1일부터 시행됩니다(부칙 제1조). 최저기초일액(이직 전 1일
+        소정근로시간 × 최저임금)을 정한 제45조 제4항은 이 개정에서 바뀌지 않았습니다.
       </p>
       <p>
         부칙 제3조는 {ANNUAL_BASE_RULE_YEAR}년 1월 1일 전에 이직한 근로자의 구직급여는 종전 규정에 따라 산정한다고 정하고
-        있습니다. 따라서 {ANNUAL_BASE_RULE_YEAR - 1}년 12월 31일까지 이직하면, 즉 이 계산기가 받는 모든 이직일은 지금처럼 이직 전 3개월 평균임금으로
-        계산합니다. 위의 상한 103% 연동과 주 6일분 지급은 아직 확정되지 않은 부분입니다.
+        있습니다. 따라서 {ANNUAL_BASE_RULE_YEAR - 1}년 12월 31일까지 이직하면, 즉 이 계산기가 받는 모든 이직일은 지금처럼 이직
+        전 3개월 평균임금으로 계산합니다. 반면 위의 상한 103% 연동, 주 6일분 지급, 보험료율 1.0% 인상은 2026년 9월 1일
+        고용보험위원회에 올라간 정부안일 뿐 아직 법령으로 정해지지 않았습니다.
       </p>
 
       <h2>근거 법령과 참고 자료</h2>
@@ -384,7 +470,14 @@ export default function UnemploymentPage() {
           제45조 개정규정(2028.1.1 시행), 부칙 제1조(시행일)·제3조(구직급여의 산정에 관한 경과조치)
         </li>
         <li>
-          <a href="https://www.law.go.kr/법령/고용보험법시행규칙">고용보험법 시행규칙</a> 별표2(정당한 이직 사유)
+          <a href="https://www.law.go.kr/법령/고용보험법시행규칙">고용보험법 시행규칙</a> 제91조의2(이직 전 1일 소정근로시간의
+          산정), 별표2(정당한 이직 사유)
+        </li>
+        <li>
+          <a href="https://www.law.go.kr/LSW/admRulInfoP.do?admRulSeq=2100000232090">
+            급여기초임금일액 산정규정(고용노동부예규 제221호, 2023.12.1)
+          </a>{" "}
+          제3조(소수점 올림, 8시간 상한)
         </li>
         <li>
           <a href="https://easylaw.go.kr/CSP/CnpClsMain.laf?popMenu=ov&csmSeq=722&ccfNo=2&cciNo=3&cnpClsNo=2">

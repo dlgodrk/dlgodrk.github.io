@@ -64,3 +64,22 @@ export function roundTo(n: number, unit: number): number {
 export function formatPercent(ratio: number, maxFractionDigits = 2): string {
   return `${formatNumber(ratio * 100, maxFractionDigits)}%`;
 }
+
+const WIDE_CHAR = /[ᄀ-ᇿ⺀-鿿가-힯豈-﫿＀-￯]/;
+const NARROW_PUNCT = /[,.:;'·()\[\]|!]/;
+
+/**
+ * Conservative estimate of the rendered width, in em, of the longest run of `text` that
+ * cannot wrap (runs are split at whitespace). Hangul/CJK ≈ 1em, punctuation ≈ 0.3em,
+ * digits and Latin ≈ 0.62em (bold proportional digits). Used to shrink big headline
+ * figures so they fit narrow phones: "14,512,345,678원" -> 8.72.
+ */
+export function longestRunEm(text: string): number {
+  let max = 0;
+  for (const run of text.split(/\s+/)) {
+    let em = 0;
+    for (const ch of run) em += WIDE_CHAR.test(ch) ? 1 : NARROW_PUNCT.test(ch) ? 0.3 : 0.62;
+    if (em > max) max = em;
+  }
+  return Math.round(max * 100) / 100;
+}

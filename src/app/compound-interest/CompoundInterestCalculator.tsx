@@ -250,7 +250,8 @@ export function CompoundInterestCalculator({ initial = {} }: { initial?: Compoun
                 ) : null}
               </StatementSection>
               <StatementFootnote>
-                매년 같은 수익률이 이어진다고 가정한 계산이에요. 실제 투자 수익은 해마다 달라지고 원금 손실이 날 수도 있어요.
+                매년 같은 수익률이 이어진다고 가정한 예시이고 투자 권유가 아니에요. 실제 투자 수익은 해마다 달라지고 원금 손실이
+                날 수도 있어요.
                 {m0 > 0 ? ` ${TIMING_LABEL[timing]} 기준이에요.` : ""}
                 {compounding !== "monthly" && m0 > 0
                   ? " 주기 중간에 넣은 돈은 주기 끝까지 단리로 이자가 쌓인 뒤 원금에 합쳐져요."

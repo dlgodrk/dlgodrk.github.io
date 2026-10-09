@@ -16,11 +16,16 @@ import {
   MAX_DAILY_HOURS,
   MAX_WEEKLY_HOURS,
   monthlyHoursExact,
-  netMonthly2026,
+  netMonthly,
+  pensionRateLabel,
+  RATE_2027_NOTE_UI,
+  ruleMonthLabel,
   shownHoursAreExact,
   yearOverYear,
   type MinWageYear,
 } from "@/lib/calc/minimum-wage";
+import { rulePayMonth } from "@/lib/rates/insurance";
+import { useToday } from "@/lib/useToday";
 import { useUrlState } from "@/lib/useUrlState";
 
 type YearKey = "2026" | "2027";
@@ -45,9 +50,14 @@ export function MinimumWageCalculator() {
   const dailyOk = Number.isFinite(daily) && daily > 0 && daily <= 24;
   const valid = weeklyOk && dailyOk;
 
+  const { today } = useToday();
+  // 2026 wage → the 4대보험 rules of the visitor's month (like the salary tool; 2026-12 from 2027 on).
+  // 2027 wage → the 2027 예상 (국민연금 5.0% …), the same figure the 시급·주휴수당 계산기 shows.
+  const payMonth = rulePayMonth(today.y, today.m);
+
   const r = valid ? calcMinimumWage({ year, weeklyHours: weekly, dailyHours: daily, probation }) : null;
   const yoy = valid ? yearOverYear({ weeklyHours: weekly, dailyHours: daily, probation }) : null;
-  const net = r && year === 2026 && weekly >= JUHYU_MIN_WEEKLY_HOURS ? netMonthly2026(r.monthly) : null;
+  const net = r ? netMonthly(r.monthly, weekly, year, payMonth) : null;
   // 월급 uses the exact 월 환산 시간; the 0.01h value shown is marked ≈/약 unless it is exact (209, 182.5 …).
   const hoursExact = r ? shownHoursAreExact(r.monthlyPayHours, r.monthlyHours) : true;
 
@@ -175,9 +185,19 @@ export function MinimumWageCalculator() {
             </StatementSection>
 
             {net ? (
-              <StatementSection title="월급 세후 예상 (참고)">
-                <StatementRow label="4대보험" note="국민연금·건강·장기요양·고용" value={`−${formatWon(net.insurance.total)}`} />
-                <StatementRow label="소득세·지방소득세" note="간이세액표, 본인 1인" value={`−${formatWon(net.tax.total)}`} />
+              <StatementSection
+                title={year === 2027 ? "월급 세후 (2027년 예상, 참고)" : `월급 세후 (${ruleMonthLabel(net.payMonth)}분 요율, 참고)`}
+              >
+                <StatementRow
+                  label="4대보험"
+                  note={
+                    net.shortTime
+                      ? "초단시간이라 고용보험만"
+                      : `국민연금 ${pensionRateLabel(year)}·건강·장기요양·고용`
+                  }
+                  value={`−${formatWon(net.insuranceTotal)}`}
+                />
+                <StatementRow label="소득세·지방소득세" note="간이세액표, 본인 1인" value={`−${formatWon(net.taxTotal)}`} />
                 <StatementRow label="세후 실수령" value={formatWon(net.net)} emphasis />
               </StatementSection>
             ) : null}
@@ -190,8 +210,14 @@ export function MinimumWageCalculator() {
                 ? "주 40시간은 최저임금 고시와 같이 월 209시간(208.57시간)으로 계산했어요. "
                 : "209시간은 주 40시간일 때 쓰는 고시 기준이라, 이 근무시간은 1시간 단위로 맞추지 않고 공식 그대로의 정확한 월 환산 시간으로 월급을 계산했어요. 시간은 소수 둘째 자리까지만 보여 드려요. "}
               원 미만은 반올림했어요.
-              {net ? " 세후 금액은 2026년 요율에 비과세 수당이 없다고 보고 낸 추정치예요." : ""}
-              {year === 2027 && weekly >= JUHYU_MIN_WEEKLY_HOURS ? " 2027년 4대보험 요율은 아직 확정 전이라 세후 금액은 빼고 보여 드려요." : ""}
+              {net
+                ? year === 2027
+                  ? ` 세후 금액은 비과세 수당이 없는 본인 1명 기준 추정치예요. ${RATE_2027_NOTE_UI}`
+                  : ` 세후 금액은 ${ruleMonthLabel(net.payMonth)}분 4대보험 요율과 간이세액표에 비과세 수당이 없다고 보고 낸 추정치예요.`
+                : ""}
+              {net?.shortTime
+                ? ` 주 ${JUHYU_MIN_WEEKLY_HOURS}시간 미만은 국민연금·건강보험 직장가입 대상이 아니라 고용보험만 넣었어요(3개월 이상 계속 일한다고 가정).`
+                : ""}
             </StatementFootnote>
           </Statement>
         ) : (

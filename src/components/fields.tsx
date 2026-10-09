@@ -6,7 +6,21 @@ import { formatNumber, parseNumber } from "@/lib/format";
 /**
  * Form controls shared by every calculator. All are controlled components.
  * Layout: label on top, control, then an optional hint line.
+ * Hints are linked to their control with aria-describedby, so screen readers read them on focus.
  */
+
+/** id of a field's hint paragraph (derived from the control's useId value). */
+const hintIdFor = (id: string) => `${id}-hint`;
+/** aria-describedby value for a control: the hint id when there is a hint. */
+const describedBy = (id: string, hint: ReactNode) => (hint ? hintIdFor(id) : undefined);
+
+function FieldHint({ id, hint }: { id: string; hint?: ReactNode }) {
+  return hint ? (
+    <p id={hintIdFor(id)} className="field-hint">
+      {hint}
+    </p>
+  ) : null;
+}
 
 function FieldFrame({
   id,
@@ -14,23 +28,25 @@ function FieldFrame({
   hint,
   children,
   aside,
+  labelId,
 }: {
   id: string;
   label: ReactNode;
   hint?: ReactNode;
   children: ReactNode;
   aside?: ReactNode;
+  labelId?: string;
 }) {
   return (
     <div className="field">
       <div className="flex items-baseline justify-between gap-3">
-        <label htmlFor={id} className="field-label">
+        <label id={labelId} htmlFor={id} className="field-label">
           {label}
         </label>
         {aside ? <span className="text-sm text-muted tabular">{aside}</span> : null}
       </div>
       {children}
-      {hint ? <p className="field-hint">{hint}</p> : null}
+      <FieldHint id={id} hint={hint} />
     </div>
   );
 }
@@ -91,6 +107,7 @@ export function NumberField({
           inputMode={decimals > 0 ? "decimal" : "numeric"}
           autoComplete="off"
           placeholder={placeholder}
+          aria-describedby={describedBy(id, hint)}
           value={display}
           onBlur={() => setDraft(null)}
           onChange={(e) => {
@@ -155,7 +172,7 @@ export function SegmentedField<T extends string>({
 }) {
   const id = useId();
   return (
-    <div className="field" role="radiogroup" aria-labelledby={id}>
+    <div className="field" role="radiogroup" aria-labelledby={id} aria-describedby={describedBy(id, hint)}>
       <span id={id} className="field-label">
         {label}
       </span>
@@ -173,7 +190,7 @@ export function SegmentedField<T extends string>({
           </button>
         ))}
       </div>
-      {hint ? <p className="field-hint">{hint}</p> : null}
+      <FieldHint id={id} hint={hint} />
     </div>
   );
 }
@@ -195,7 +212,13 @@ export function SelectField<T extends string>({
   return (
     <FieldFrame id={id} label={label} hint={hint}>
       <div className="field-control">
-        <select id={id} className="field-input field-select" value={value} onChange={(e) => onChange(e.target.value as T)}>
+        <select
+          id={id}
+          className="field-input field-select"
+          aria-describedby={describedBy(id, hint)}
+          value={value}
+          onChange={(e) => onChange(e.target.value as T)}
+        >
           {options.map((o) => (
             <option key={o.value} value={o.value}>
               {o.label}
@@ -233,6 +256,7 @@ export function DateField({
           id={id}
           type="date"
           className="field-input tabular"
+          aria-describedby={describedBy(id, hint)}
           value={value}
           min={min}
           max={max}
@@ -262,17 +286,45 @@ export function StepperField({
   hint?: ReactNode;
 }) {
   const id = useId();
+  const labelId = `${id}-label`;
+  const decId = `${id}-dec`;
+  const incId = `${id}-inc`;
+  const atMin = value <= min;
+  const atMax = value >= max;
+  // The buttons stay focusable at the limits (aria-disabled, clicks ignored) so keyboard
+  // focus is not dropped to <body> when the focused button reaches min/max.
+  // Accessible names combine the field label with the action, e.g. "공제대상가족 수 하나 늘리기".
   return (
-    <FieldFrame id={id} label={label} hint={hint}>
+    <FieldFrame id={id} label={label} hint={hint} labelId={labelId}>
       <div className="stepper">
-        <button type="button" aria-label="하나 줄이기" onClick={() => onChange(Math.max(min, value - 1))} disabled={value <= min}>
+        <button
+          type="button"
+          id={decId}
+          aria-label="하나 줄이기"
+          aria-labelledby={`${labelId} ${decId}`}
+          aria-describedby={describedBy(id, hint)}
+          aria-disabled={atMin}
+          onClick={() => {
+            if (!atMin) onChange(Math.max(min, value - 1));
+          }}
+        >
           −
         </button>
         <output id={id} className="tabular" aria-live="polite">
           {value}
           {unit ? <span className="ml-0.5 text-muted">{unit}</span> : null}
         </output>
-        <button type="button" aria-label="하나 늘리기" onClick={() => onChange(Math.min(max, value + 1))} disabled={value >= max}>
+        <button
+          type="button"
+          id={incId}
+          aria-label="하나 늘리기"
+          aria-labelledby={`${labelId} ${incId}`}
+          aria-describedby={describedBy(id, hint)}
+          aria-disabled={atMax}
+          onClick={() => {
+            if (!atMax) onChange(Math.min(max, value + 1));
+          }}
+        >
           +
         </button>
       </div>
@@ -295,10 +347,17 @@ export function CheckboxField({
   return (
     <div className="field">
       <label htmlFor={id} className="flex cursor-pointer items-center gap-2.5">
-        <input id={id} type="checkbox" className="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
+        <input
+          id={id}
+          type="checkbox"
+          className="checkbox"
+          aria-describedby={describedBy(id, hint)}
+          checked={checked}
+          onChange={(e) => onChange(e.target.checked)}
+        />
         <span className="text-ink">{label}</span>
       </label>
-      {hint ? <p className="field-hint">{hint}</p> : null}
+      <FieldHint id={id} hint={hint} />
     </div>
   );
 }
@@ -311,6 +370,7 @@ export function TextAreaField({
   rows = 10,
   placeholder,
   aside,
+  hint,
 }: {
   label: ReactNode;
   value: string;
@@ -318,15 +378,17 @@ export function TextAreaField({
   rows?: number;
   placeholder?: string;
   aside?: ReactNode;
+  hint?: ReactNode;
 }) {
   const id = useId();
   return (
-    <FieldFrame id={id} label={label} aside={aside}>
+    <FieldFrame id={id} label={label} aside={aside} hint={hint}>
       <textarea
         id={id}
         className="field-input field-textarea"
         rows={rows}
         placeholder={placeholder}
+        aria-describedby={describedBy(id, hint)}
         value={value}
         onChange={(e) => onChange(e.target.value)}
       />

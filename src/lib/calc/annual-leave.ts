@@ -25,6 +25,20 @@ export const MONTHLY_LEAVE_MAX = 11;
 /** 회계연도 비례 연차의 분모 (고용노동부 실무 산식: 15 × 재직일수 / 365) */
 export const PRORATA_DENOMINATOR = 365;
 
+/**
+ * Dates the calculator accepts (also the date inputs' min/max). While a year is being typed, Chrome's
+ * native date input passes values such as "0002-…", "0020-…", "0202-…"; calculating those would show
+ * "근속 1,824년" and loop once per anniversary.
+ */
+export const DATE_MIN_YEAR = 1900;
+export const DATE_MAX_YEAR = 2100;
+export const DATE_MIN = `${DATE_MIN_YEAR}-01-01`;
+export const DATE_MAX = `${DATE_MAX_YEAR}-12-31`;
+
+export function isDateInRange(v: YMD): boolean {
+  return v.y >= DATE_MIN_YEAR && v.y <= DATE_MAX_YEAR;
+}
+
 export type LeaveBasis = "hire" | "fiscal";
 
 /**
@@ -252,10 +266,11 @@ function dec31(y: number): YMD {
   return { y, m: 12, d: 31 };
 }
 
-/** Full calculation for the calculator. Returns null for invalid input (기준일 < 입사일 등). */
+/** Full calculation for the calculator. Returns null for invalid input (기준일 < 입사일, 범위 밖 연도 등). */
 export function calculateLeave(input: LeaveInput): LeaveResult | null {
   const { hire, asOf, basis, attended80 } = input;
-  if (!isValidYMD(hire) || !isValidYMD(asOf) || compareYMD(asOf, hire) < 0) return null;
+  if (!isValidYMD(hire) || !isValidYMD(asOf) || !isDateInRange(hire) || !isDateInRange(asOf)) return null;
+  if (compareYMD(asOf, hire) < 0) return null;
   const latest: LatestAttendance = { attended80, perfectMonths: input.perfectMonths };
 
   const ten = tenure(hire, asOf);

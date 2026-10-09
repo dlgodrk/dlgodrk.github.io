@@ -16,6 +16,8 @@ import {
   FIRST_HOME_LIMIT,
   FIRST_HOME_LIMIT_SMALL,
   MAN,
+  NATIONAL_HOUSING_M2,
+  NATIONAL_HOUSING_M2_RURAL,
   rateLabel,
   totalFor,
   type Buyer,
@@ -147,7 +149,7 @@ export function AcquisitionTaxCalculator({ initialPrice = 50_000 }: { initialPri
               { value: "s", label: "85㎡ 이하" },
               { value: "l", label: "85㎡ 초과" },
             ]}
-            hint="전용 84㎡(흔히 34평형)까지는 85㎡ 이하예요. 85㎡ 이하는 농어촌특별세가 없어요."
+            hint={`전용 84㎡(흔히 34평형)까지는 ${NATIONAL_HOUSING_M2}㎡ 이하예요. 수도권 밖 도시지역이 아닌 읍·면은 ${NATIONAL_HOUSING_M2_RURAL}㎡까지 '${NATIONAL_HOUSING_M2}㎡ 이하'로 고르세요. 이 범위(국민주택규모)는 농어촌특별세가 없어요.`}
           />
           {showFirstHome ? (
             <>
@@ -197,7 +199,7 @@ export function AcquisitionTaxCalculator({ initialPrice = 50_000 }: { initialPri
               <StatementRow
                 label="농어촌특별세율"
                 value={s.a ? rateLabel(r.ruralUnits) : "비과세"}
-                note={s.a ? "전용 85㎡ 초과" : "전용 85㎡ 이하"}
+                note={s.a ? "국민주택규모(전용 85㎡) 초과" : "국민주택규모(전용 85㎡) 이하"}
               />
             </StatementSection>
 
@@ -221,7 +223,7 @@ export function AcquisitionTaxCalculator({ initialPrice = 50_000 }: { initialPri
                     ? `감면액의 20% ${formatWon(r.ruralOnReduction)} 포함`
                     : s.a
                       ? undefined
-                      : "85㎡ 이하 비과세"
+                      : "국민주택규모 이하 비과세"
                 }
               />
             </StatementSection>

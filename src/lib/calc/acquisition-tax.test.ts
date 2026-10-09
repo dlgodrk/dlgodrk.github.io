@@ -6,6 +6,8 @@ import {
   EOK,
   findAcqPage,
   MAN,
+  NATIONAL_HOUSING_M2,
+  NATIONAL_HOUSING_M2_RURAL,
   neighborsOf,
   priceLabel,
   rateLabel,
@@ -158,6 +160,12 @@ describe("생애최초 감면 (지방세특례제한법 제36조의3)", () => {
     expect(r.ruralOnReduction).toBe(400_000);
     expect(r.total).toBe(4_700_000);
   });
+  it("국민주택규모 이하: 감면분 농어촌특별세도 비과세 (농어촌특별세법 제4조 제9호)", () => {
+    const r = calc(5 * EOK, { firstHome: true, over85: false });
+    expect(r.ruralBase).toBe(0);
+    expect(r.ruralOnReduction).toBe(0);
+    expect(r.total).toBe(3_300_000);
+  });
   it("12억 is the price cap", () => {
     const ok = calc(12 * EOK, { firstHome: true });
     expect(ok.reduction).toBe(2_000_000);
@@ -187,6 +195,20 @@ describe("생애최초 감면 (지방세특례제한법 제36조의3)", () => {
     const r = calc(12 * EOK + MAN, { houses: 2, regulated: true, firstHome: true });
     expect(r.firstHome.eligible).toBe(false);
     expect(r.rateCase).toBe("heavy8");
+  });
+});
+
+describe("국민주택규모 (주택법 제2조제6호, 2026-10-09 확인)", () => {
+  // 주거전용면적 85㎡ 이하; 수도권을 제외한 도시지역이 아닌 읍·면 지역은 100㎡ 이하.
+  // 농어촌특별세법 시행령 제4조⑤: 서민주택 = 국민주택규모 이하 → 제4조 제9호·제11호 비과세.
+  it("uses 85㎡ and 100㎡ (수도권 밖 비도시 읍·면)", () => {
+    expect(NATIONAL_HOUSING_M2).toBe(85);
+    expect(NATIONAL_HOUSING_M2_RURAL).toBe(100);
+  });
+  it("a 95㎡ home in a 비수도권 비도시 읍·면 is within 국민주택규모, so no 농특세 (over85: false)", () => {
+    // 5억, 1주택: 취득세 500만 + 지방교육세 50만, 농특세 0.2%(100만) 없음.
+    expect(calc(5 * EOK, { over85: false }).rural).toBe(0);
+    expect(calc(5 * EOK, { over85: true }).rural).toBe(1_000_000);
   });
 });
 

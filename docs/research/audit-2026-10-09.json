@@ -1,0 +1,322 @@
+[
+ {
+  "id": "G1",
+  "severity": "major",
+  "lens": "gaps",
+  "slug": "four-insurance (new)",
+  "file": "src/lib/tools.ts",
+  "problem": "There is no 4대보험 계산기 that shows both the employee and employer shares. People search for this a lot (employers, HR staff and freelancers starting a first job), and the site already has tested 2026 rates for it. Right now the rates only appear as deduction lines inside the salary result.",
+  "evidence": "tools.ts:30-56 registers 25 tools and none of them is a 4대보험/사업주 부담 tool. The only mention is the `aliases: [... \"4대보험\" ...]` entry on salary (line 31). src/lib/rates/insurance.ts:2 says \"2026 근로자 4대보험 (employee share)\", and `employeeInsurance()` (line 52) is already tested against the 4insure simulator, per the header comment at line 14. docs/research/insurance-2026.md:57 already records 산재 \"Average 1.47%, paid entirely by the employer\", and :9 records \"4.75% employer 부담금\".",
+  "fix": "Add a new tool \"four-insurance\" following the files listed in `docs/CONVENTIONS.md`:\n- `src/lib/calc/four-insurance.ts` and its test file\n- `src/app/four-insurance/page.tsx`\n- a FourInsuranceCalculator component\n\n`src/lib/tools.ts` is a shared file under CONVENTIONS line 32, so the orchestrator registers the tool there. Suggested entry: category \"work\", aliases such as 4대보험 요율, 사업주 부담, 인건비, 산재보험.\n\n**Calculation**\n1. Employee column: reuse `employeeInsurance(pay, payMonth, opts)`.\n2. Employer 국민연금, 건강보험 and 장기요양 are the same amounts as the employee's. This also holds for the November 2026 장기요양 switch to 0.1314.\n3. Employer 고용보험: compute as one truncation, `floor((pay*(90+X))/10000)*10`, with X = 25, 45, 65 or 85 by company size (`insurance-2026.md:103`). Test it against the 4insure vector: 3,000,000 at <150인 gives 34,500.\n4. If the employee is exempt from 실업급여 (hired at 65 or older), the employer still pays the X part. Do not zero the whole employer 고용보험.\n5. 산재: an editable rate defaulting to 1.47%, the 2026 average (고용노동부 고시, unchanged for a second year, includes the 출퇴근재해 0.06%). Label it clearly as an average that differs by industry.\n\n**Output**\n- Show the employee total, the employer total, and the total labor cost (월급 + 사업주 부담).\n- Add a 2026 요율표 section.\n\n**두루누리 (optional)**\n- It covers only 국민연금 and 고용보험, not 건강보험 or 산재.\n- It pays 80% of both the employer and employee shares, for new enrollees at workplaces with fewer than 10 workers.\n- The commonly cited 2026 pay threshold is 월평균보수 270만원 미만, but only secondary sources give it. Verify it at comwel.or.kr before coding it."
+ },
+ {
+  "id": "G3",
+  "severity": "major",
+  "lens": "gaps",
+  "slug": "salary",
+  "file": "src/app/salary/[amount]/page.tsx",
+  "problem": "The 108 prerendered salary pages only match 연봉 queries. '월급 N만원 실수령액' / '세전 월급 300 실수령액' queries are just as common, but no indexable page has a title or H1 that matches them. The calculator supports a 월급 mode, but that state lives only in the query string (?m=m), which is not indexed.",
+  "evidence": "salary.ts:71-76 builds `SALARY_PAGE_MANWON` from 연봉 values only. The title at line 50 is `연봉 ${label} 실수령액 - 월 ...만원 (2026년)` and the H1 at line 152 is `연봉 ${label} 실수령액: 월 ...`. The monthly gross only appears as `formatWon(r.monthlyGross)` (\"3,000,000원\"), never as \"월급 300만원\". SalaryCalculator.tsx:109-146 already has the 월급 mode with `MONTHLY_PRESETS_MANWON = [200, 250, 300, 350, 400, 500]` (salary-ui.ts:22).",
+  "fix": "Do only the cheap step, inside src/app/salary/[amount]/page.tsx.\n\nWhen `r.monthlyGross % 10_000 === 0`:\n- Let `mg = manwonLabel(r.monthlyGross / 10_000)`.\n- Add `월급 ${mg} 실수령액` and `세전 월급 ${r.monthlyGross / 10_000} 실수령액` to `keywords` (line 57).\n- In the lead (line 153) or the first paragraph (line 161), state \"세전 월급 ${mg}\" next to the 원 figure.\n\nWhen the monthly amount is also a multiple of 50만원 (/2400/ → 200, /3000/ → 250, /3600/ → 300, /4200/ → 350, /4800/ → 400, /6000/ → 500, and so on):\n- Add \"(월급 ${mg})\" to the H1.\n- If the title stays at 45 characters or fewer, add it to the title too.\n\nDo not add /salary/monthly/[manwon]/ pages unless Naver keyword-tool data shows demand. Even then, skip any monthly amount whose 연봉 page already exists."
+ },
+ {
+  "id": "G4",
+  "severity": "major",
+  "lens": "gaps",
+  "slug": "freelance-tax (new)",
+  "file": "src/lib/calc/hourly-wage.ts",
+  "problem": "There is no standalone 3.3% calculator for 프리랜서/알바 세금, covering 세전↔세후 역산 and 8.8% 기타소득. This is a very common, simple and verifiable query, and the site already has tested logic for it, but it only exists inside the hourly-wage result.",
+  "evidence": "hourly-wage.ts:169 `export function freelanceTax(gross)` already applies 소득세 3% and 지방세 10% with 10원 절사. The legal basis is cited at lines 17-19 (소득세법 제129조①3, 제86조, 법률 제19933호). tools.ts has no 3.3%/프리랜서 entry. Only hourly-wage/page.tsx:157 \"알바 3.3%와 4대보험, 무엇이 다른가\" covers it, as a prose section.",
+  "fix": "Add a new tool /freelance-tax/ (e.g. \"3.3% 계산기 - 프리랜서 세금·실수령액\") with these parts:\n- Logic: move freelanceTax out of src/lib/calc/hourly-wage.ts into src/lib/calc/freelance-tax.ts or a shared rates module, and re-export it from hourly-wage so its existing tests keep passing.\n- gross→net.\n- net→gross: search for the smallest gross whose gross − freelanceTax(gross).total equals the input. Simple division by 0.967 can be off because of floor10. Note that some net values have no exact gross.\n- 8.8% 기타소득 mode: tax = floor10(지급액 × 40% × 20%) plus 지방세 floor10(소득세 × 10%). Apply 과세최저한 (소득세법 제84조): no tax when 기타소득금액 per 건 is 5만원 or less, i.e. a payment of 125,000원 or less at the 60% expense rate. State that the 60% 의제경비 applies only to certain 기타소득, such as 제21조①15·19호 (강연료, 일시적 인적용역, 원고료).\n- Short notes on 사업소득 vs 근로소득 misclassification, linking to /hourly-wage/, and on May 종합소득세 settlement.\n- Add the tools.ts entry (category \"money\" or \"work\") with aliases such as 3.3%, 프리랜서 세금, 사업소득, 8.8%, 기타소득.\n- Optional prerendered pages for common amounts (100/200/300/500만원), only if keyword-tool data shows demand (per CONVENTIONS).\n- Severity: medium (feature gap), not major."
+ },
+ {
+  "id": "G5",
+  "severity": "major",
+  "lens": "gaps",
+  "slug": "year-end-tax (new)",
+  "file": "src/lib/calc/severance.ts",
+  "problem": "There is no 연말정산 간이 계산기 (환급/추가납부 예상). This is the biggest seasonal query in the work category: 홈택스 미리보기 opens in November and searches peak in January-February. Since new Naver pages take about 2 weeks or more to appear, it needs to ship by mid-November to catch this season. The 2026 기본세율 table is already in the codebase.",
+  "evidence": "severance.ts:168-177 `BASIC_TAX_BRACKETS` (\"소득세법 제55조①, 2023년 이후 · 2026 귀속\") and `basicIncomeTax()` (line 180) are reusable. withholding.ts:8-9 warns that the 간이세액표 engine \"embeds frozen parameters ... NOT 2026 law for 연말정산 and must not be 'updated'\", so a separate, correct engine is needed. No tool in tools.ts covers 연말정산/종합소득세/근로장려금.",
+  "fix": "Add /year-end-tax/ (2026 귀속, 기준일 stated) and ship it by early November, since 미리보기 opened 2025-11-05.\n\nPipeline:\n1. 총급여 → 근로소득공제 (§47, 2천만 한도) → 근로소득금액.\n2. Subtract 소득공제: 인적공제 150만/인 (§50), 연금보험료 (국민연금 × 12), 건강·고용보험료 (특별소득공제, from `employeeInsurance`).\n3. Include 신용카드 등 소득공제 as a simple input. This is not optional because nearly every user has it. Inputs: 신용/체크·현금/전통시장·대중교통 amounts. Rules: 최저사용금액 25% of 총급여, rates 15/30/40%, 기본한도 300만 (총급여 7천만 이하) or 250만, plus the 추가한도. Verify each figure against 조특법 §126의2 on law.go.kr.\n4. 과세표준 → `basicIncomeTax()` from severance.ts. Consider moving it to a shared rates file instead of importing it from severance.\n5. Subtract 세액공제:\n   - 근로소득세액공제 (§59): 55% up to 130만, then 71.5만 + 30%. 한도 74만 / 66만 / 50만 / 20만 by 총급여.\n   - 자녀세액공제 (§59의2, 2025.1.1 시행, still in force for 2026): 25만 / 55만 / +40만 per child. Also 출산·입양 30/50/70만.\n   - 혼인세액공제 50만 (2024~2026 혼인신고).\n   - Either the 표준세액공제 13만 (only if no 특별소득·특별세액공제 or 월세 is claimed) or entered 월세, 연금저축/IRP, 의료비, 교육비, 보험료 credits.\n6. 결정세액 + 지방소득세 10%.\n\nFor 기납부세액, let the user type it in from the 급여명세서 or 원천징수영수증. Offer a computed default only as a fallback: Jan–Feb with `payMonth` \"2026-01\"/\"2026-02\" and Mar–Dec with \"2026-03\", applying the chosen 80/100/120 ratio. Do not use October × 12.\n\nShow 환급 or 추가납부, and note that the 2026-08-03 세제개편안 (부양가족 소득요건 300만, 출산·혼인 세액공제 폐지, 월세 확대) is pending in the National Assembly and mostly applies from 2027. Re-check after the December 의결.\n\nGolden tests should come from the NTS 2026 귀속 연말정산 신고안내 worked examples.\n\nAlso update the 12~1월 row in docs/PROMOTION.md. Drop the unsupported \"biggest seasonal query\" claim. 종합소득세 and 근로장려금 stay next for May; note that the 근로장려금 expansion applies from 2027 과세기간."
+ },
+ {
+  "id": "G6",
+  "severity": "major",
+  "lens": "gaps",
+  "slug": "dday",
+  "file": "src/lib/calc/dday.ts",
+  "problem": "There is no public-holiday data, so the site can't answer '2027 공휴일 / 2027 황금연휴 / 연차 붙이기' (heavy Oct-Jan demand) or '근무일수·영업일 계산'. The existing D-day result also explicitly leaves holidays out of its weekday count.",
+  "evidence": "dday.ts:122 `/** Number of Mon–Fri days ... Public holidays are NOT removed. */ export function countWeekdays`. DdayCalculator.tsx:346 shows `label=\"평일 (월~금)\" note=\"공휴일 미반영\"`, and line 352 tells users to subtract 설·추석 themselves. 2027 holiday facts are already hand-written per event (dday.ts:484 \"연차를 쓰면 좋은 날 2027-02-05 → 5일 연휴\", :488 대체공휴일 2027-02-09) and KASI_2027 is cited at :290, but there is no shared table.",
+  "fix": "Lower the severity to minor (an opportunity) and present this as a feature gap, not a defect. Change the wording to \"no complete holiday list or holiday-aware 근무일수\", because the 설 and 추석 event pages already give 연차 bridging advice.\n\n1. Add a holiday module such as src/lib/holidays.ts holding the 2026 and 2027 공휴일, 대체공휴일 and 임시공휴일, each with a source URL. Check every date against the KASA/KASI 월력요항.\n   - Include 제헌절, restored from 2026 by the 공휴일에 관한 법률 amendment passed on 2026-01-29. For 2027: 7/17 (Sat), with 7/19 (Mon) as the substitute.\n   - Include 노동절 (5/1), a 관공서 public holiday from 2026 under the regulation amended on 2026-04-28.\n   - Include any 2026 임시공휴일, such as 6/3 지방선거 day.\n   - The 2027 total must reconcile to the 월력요항's 72 actual holidays, which dday.ts:421 already cites.\n\n2. Flag 노동절 separately. 인사혁신처 gives a 대체공휴일 for 관공서, but 고용노동부 says private-sector 노동절 cannot be moved to another day. A private-company 근무일수 count must not assume a 노동절 substitute day.\n\n3. Then use the module in three places:\n   - an opt-in \"공휴일 제외\" count in dday's between view, replacing the 공휴일 미반영 note;\n   - a new /workdays/ 영업일 계산기;\n   - a 2027 공휴일·연휴 page linked from annual-leave.\n\n4. Add a yearly update reminder next to the existing one at dday.ts:253-254."
+ },
+ {
+  "id": "G7",
+  "severity": "major",
+  "lens": "gaps",
+  "slug": "parental-leave (new)",
+  "file": "src/lib/tools.ts",
+  "problem": "There is no 육아휴직 급여 / 출산휴가 급여 계산기. Search demand is high and steady, and the rules are formula-based and published by the government after the 2025 overhaul. The site's work category and due-date audience are exactly the people who search for it, but the site only mentions 육아휴직 as a counted attendance period.",
+  "evidence": "Searching src/ for 육아휴직 finds only annual-leave/severance attendance notes (annual-leave/page.tsx:261, severance/page.tsx:134, SeveranceCalculator.tsx:300) and no calculator. tools.ts:9 work blurb is \"실수령액, 퇴직금, 실업급여, 연차\". due-date.ts:270 `SUPPORT` covers only 바우처/첫만남이용권.",
+  "fix": "Add a new tool at src/lib/calc/parental-leave.ts and src/app/parental-leave/, and register it in tools.ts under category \"work\". tools.ts is a shared file, so request that change through the orchestrator. Verify each constant on law.go.kr (고용보험법 시행령 제95조, 제95조의3; 출산전후휴가 급여 등 상한액 고시) and on 고용24 before writing tests.\n1. 육아휴직 급여 for leave starting on or after 2025-01-01: pay 통상임금 × 100% in months 1–3 (cap 2,500,000) and months 4–6 (cap 2,000,000). From month 7, pay 80% (cap 1,600,000). The floor is 700,000. Pay everything monthly, because 사후지급금 is abolished. Prorate a partial month by days.\n2. 6+6 특례 toggle: applies when the child is within 18 months of birth and both parents take leave. Per-parent caps for months 1–6 are 250/250/300/350/400/450만, then the general rule applies from month 7. Show the gain over the general rule in the result (6-month max of 2,000만 vs 1,350만).\n3. 출산전후휴가 급여: 90 days, 100 for a premature birth, 120 for twins or more. The 2026 cap is 2,200,000 per 30 days, under the 고시 that took it from 210만 in 2025. The floor is the 최저임금 월 환산. Add a 우선지원대상기업 vs 대규모기업 toggle: at a large employer, 고용보험 pays only the last 30 days (45 days for multiples) and the employer pays the first 60.\n4. Show a month-by-month 지급표 and a total. State 기준일 2026-10-09 in `basis` and say clearly that the caps apply per month.\n5. Prerender 통상임금 pages only if the tables really differ. Below 160만, a page differs only by its rate. Above 250만, every page hits the caps, so pages are near-identical. Prerendering about 200/250/300/350/400만 at most is enough.\n6. Link to the new tool from due-date (next to SUPPORT) and from salary. Both are other tools' folders, so file cross-link requests rather than editing them directly."
+ },
+ {
+  "id": "G8",
+  "severity": "minor",
+  "lens": "gaps",
+  "slug": "hourly-wage",
+  "file": "src/lib/calc/hourly-wage.ts",
+  "problem": "The hourly-wage page family is indexed only by weekly hours at the legal minimum wage. Queries keyed on a specific wage ('시급 12000원 월급', '시급 11000 주휴수당', '시급 15000 한달') have no matching page.",
+  "evidence": "hourly-wage.ts:338 `export const HOURLY_PAGE_HOURS = [10, 12, 14, ..., 40]`. hourly-wage/[hours]/page.tsx:53 title is `주 ${h}시간 알바 월급 - 2026 최저시급 ...`, so every page assumes 10,320원. `payForWeeklyHours(weeklyHours, wage, rateYear)` (line 347) already accepts any wage.",
+  "fix": "After the in-flight exact-hours change lands, add /hourly-wage/wage/[won]/ for about 10 common wages (10,700, 11,000, 11,500, 12,000, 12,500, 13,000, 14,000, 15,000, 18,000, 20,000원). Each page gets an H1 like \"시급 12,000원 월급: 주 40시간 ○○○원\" and a table of weekly hours (10-40h) × 주급/월급/3.3%/4대보험 net. Link them from the minimum-wage table. This is low effort and moderate traffic, so do it after G1-G7."
+ },
+ {
+  "id": "pyeong-thin",
+  "severity": "major",
+  "lens": "seo-structure",
+  "slug": "pyeong",
+  "file": "src/app/pyeong/[m2]/page.tsx",
+  "problem": "The 50 /pyeong/<m2>/ pages are the clearest doorway and scaled-content risk on the site. Each page has one template paragraph of about 115 characters, which is below the CONVENTIONS minimum of 300 characters of page-specific text. Its only table is a 9-row window of neighbouring areas. Many pages sit 1㎡ apart and read identically. The apartment 평형 framing is also applied to areas where it makes no sense.",
+  "evidence": "Lines 78-81 are the only prose: \"규모로 보면 <strong>{sizeClass(m2)}</strong>에 속합니다. 아파트 분양 공고에 적힌 숫자가 {m2}㎡라면 그것은 보통 전용면적이고, ... 약 {label}평형 정도로 표현됩니다.\" The list in src/lib/calc/pyeong.ts:39-42 includes 10, 15, 20, 49/50/51, 65/66, 74/75/76, 99/100/101/102, 114/115 and 198/200. On /pyeong/10/ the lead (line 69) says \"아파트 전용면적이라면 흔히 약 4평형이라고 부릅니다\", and the FAQ asks \"전용 10㎡ 아파트는 몇 평형인가요?\". No apartment that small exists. The page-specific text does not reach 300 characters, and the neighbour table repeats 8 of 9 rows between adjacent pages.",
+  "fix": "Reword the evidence: say \"all ~440-460 rendered characters (lead + formula + paragraph + 3 FAQs) are one shared template with only the numbers swapped. The body prose is about 150 characters, so almost no text is unique to each page\". Do not say \"below 300 chars\".\n\nThen make these changes:\n\n1) Prune PYEONG_PAGE_M2 in src/lib/calc/pyeong.ts to areas people actually search for.\n   - Keep at most one of each 1㎡ cluster: 59 rather than 60, 84 rather than 85 (85 can stay only as a \"국민주택규모 경계\" page with its own text), 74 rather than 75/76, 101 rather than 99/100/102, 114 rather than 115.\n   - Drop 10/15/20 unless they get studio or 고시원 wording.\n   - The suggested list in the original fix keeps both 84 and 85. That contradicts its own \"not 1㎡ apart\" rule, so pick one or justify the pair.\n\n2) Split the template by size band.\n   - At or below 40㎡: 원룸/오피스텔 wording, with no \"전용 N㎡ 아파트는 몇 평형\" FAQ. 오피스텔 전용률 is commonly about 50-60%.\n   - Above 40㎡: apartment 평형 wording. Use one cut-off so the bands don't overlap; the original fix said both \"40 and under\" and \"from 39 up\".\n\n3) Replace the 9-row neighbour window (page.tsx:43, 83-103) with a table built around the page's own area. Show 공급면적 and 평형 at 전용률 55/70/75/80%.\n\n4) Add one rule-based paragraph per page.\n   - At or below 85㎡: 국민주택규모. Covers 농어촌특별세 비과세 on 취득세 and 청약 rules; link /acquisition-tax/ and /subscription-score/.\n   - Above 85㎡: the opposite rules.\n\n5) Add a prose link back to /pyeong/."
+ },
+ {
+  "id": "home-cluster-links",
+  "severity": "major",
+  "lens": "seo-structure",
+  "slug": "acquisition-tax",
+  "file": "src/app/brokerage-fee/[deal]/page.tsx",
+  "problem": "The home-buying cluster has no contextual cross-links, and loan is unreachable from it. No page in acquisition-tax, brokerage-fee, rent-conversion or pyeong links to another tool in prose. The related-tools block never links any home-category page to /loan/, because relatedTools fills from the same category first. Exact same-price page pairs also exist but are not linked to each other.",
+  "evidence": "A grep of href=\"/<other-tool>/\" across src/app/{acquisition-tax,brokerage-fee,rent-conversion,pyeong,subscription-score} returns only self-links. rent-conversion, subscription-score and hourly-wage/page.tsx do not import Link. Simulated relatedTools() gives loan inbound links only from money tools (savings, deposit, vat, percent, compound-interest, stock-average, car-tax). BROKERAGE_FEE_PAGES has sale-3eok, 5eok, 6eok, 9eok, 10eok, 12eok and 15eok, and every one has a matching ACQ_PAGE_MANWON page (30000, 50000, ..., 150000). brokerage-fee/[deal]/page.tsx:159-163 already compares the same price under another deal type but does not mention 취득세. The acquisition-tax main page's \"신고와 납부\" section (line 389) mentions 법무사 and 등기 but has no link to 복비 or 대출.",
+  "fix": "Severity: minor. Drop the \"loan unreachable\" claim, because SiteFooter links /loan/ on every page.\n\n1) Same-price deep-page pairs (cheap, exact matches). In brokerage-fee/[deal]/page.tsx, when p.deal === \"sale\" and ACQ_PAGE_MANWON includes p.amount/MAN, add one sentence after the 전세 comparison paragraph: \"같은 {label} 집을 1주택(전용 85㎡ 이하)으로 사면 취득세·지방교육세 합계는 {koreanWon(totalFor(p.amount, ONE))}입니다 → <Link href={`/acquisition-tax/${p.amount/MAN}/`}>{label} 취득세</Link>\". In acquisition-tax/[price]/page.tsx, add the reverse link when BROKERAGE_FEE_PAGES has a sale page with amount === m*MAN: \"<Link href={`/brokerage-fee/${slug}/`}>{priceLabel(m)} 매매 복비</Link>\". Pages without a match get no link.\n\n2) acquisition-tax/page.tsx \"신고와 납부\" (lines 388-393): add one sentence that links the main pages only: \"잔금일에는 취득세 외에 중개보수(<Link href=\\\"/brokerage-fee/\\\">복비 계산기</Link>)도 함께 정산하고, 주택담보대출 상환액은 <Link href=\\\"/loan/\\\">대출 이자 계산기</Link>로 미리 계산해 볼 수 있습니다.\"\nDo not compute \"매매가 × 60% LTV → nearest /loan/<amount>/\". LTV caps differ by region, regulation status and 2025-26 policy (for example the 수도권 6억 cap). LOAN_PAGE_MANWON tops out at 50,000만원 (5억), so prices of 9억 and up would have no matching page, and the sentence would add a new legal claim that needs verification.\n\n3) Where acquisition-tax prose first mentions 전용 85㎡ (page.tsx:96), link the text to /pyeong/85/ (it exists in PYEONG_PAGE_M2): \"전용 85㎡(약 25.7평)\".\n\n4) In rent-conversion/page.tsx, optionally add one sentence linking /brokerage-fee/ (전월세 중개보수) and /loan/ (전세대출 이자). Skip adding a link to subscription-score."
+ },
+ {
+  "id": "h1-no-answer",
+  "severity": "minor",
+  "lens": "seo-structure",
+  "slug": "shared",
+  "file": "src/app/loan/[amount]/page.tsx",
+  "problem": "Four programmatic routes break the CONVENTIONS rule that programmatic H1s put the direct answer in the heading. Their titles also lack the number that sibling routes show (salary, age, acquisition-tax, car-tax, pyeong). Because the prose is otherwise templated, the H1 and title are the cheapest way to make each page distinct.",
+  "evidence": "loan/[amount] line 113: h1 `${label} 대출 이자: 월 상환액 표 (금리·기간별)`; line 64: title `${label} 대출 이자 - 월 상환액 표 (금리·기간별)`. deposit/[amount] line 139: h1 `${label} 예금 이자: 1년 만기 금리별 세후 이자`; line 52: title without a number. savings/[monthly] line 99: h1 `월 ${m}만원 적금 1년 이자: 금리별 만기 수령액`; line 48: title without a number. bmi/[height] line 126: h1 `키 ${h}cm 표준체중과 정상 체중 범위`; line 67: title without a number. The BMI pages' three prose paragraphs (lines 141-148) are also identical across all 61 heights apart from the numbers.",
+  "fix": "Put the headline number in both the H1 and the title, using values already computed on each page. Examples: \"1억 대출 이자: 연 4% 30년 월 {base.payment}\", \"1억 예금 이자: 연 3% 1년 세후 {r.netInterest}\", \"월 50만원 적금 1년 이자: 연 3.5% 세후 {head.afterTaxInterest}원\", \"키 170cm 표준체중: 남 63.6kg·여 60.7kg (정상 53.5~66.4kg)\". Keep titles at 45 characters or fewer."
+ },
+ {
+  "id": "savings-deposit-compound",
+  "severity": "minor",
+  "lens": "seo-structure",
+  "slug": "savings",
+  "file": "src/app/savings/[monthly]/page.tsx",
+  "problem": "The /savings/<m>/ pages scale linearly. Their ratio sentences print the same percentages on all 6 pages, so only the won amounts change. Matching compound-interest scenario pages exist but are not cross-linked from either savings or deposit pages.",
+  "evidence": "Lines 114-116 and 193-194 print formatPercent(head.interest / head.principal), head.afterTaxReturn, at4.afterTaxReturn and y3at4.afterTaxReturn. These ratios do not depend on the monthly amount, so they read the same on /savings/10/ through /savings/200/. Only FAQ 4 changes, with a ≤50 vs >50 branch at lines 87-89. Compound SCENARIOS include monthly-10-30y-10, monthly-30-20y-5, monthly-50-30y-7 and monthly-100-10y-5, which match savings pages 10/30/50/100, and lump-1000-10y-5, lump-5000-10y-4 and lump-10000-20y-5, which match deposit pages 1000/5000/10000. None of those pages link to each other. Only the compound-interest main page links to /savings/ and /deposit/.",
+  "fix": "Replace the amount-independent ratio sentence with an amount-specific insight. Examples: whether this monthly amount fits 청년미래적금 or 비과세종합저축 limits, and the months needed to reach 1천만원, 3천만원 or 1억. Add \"같은 월 {m}만원을 {n}년 투자로 굴리면 → /compound-interest/monthly-{m}-...\" on savings pages, the reverse link on scenario pages, and the matching lump-sum ↔ /deposit/<amount>/ links."
+ },
+ {
+  "id": "main-lead-answer",
+  "severity": "minor",
+  "lens": "seo-structure",
+  "slug": "shared",
+  "file": "src/app/pyeong/page.tsx",
+  "problem": "Several high-traffic main-page leads describe the UI instead of answering the query, which the CONVENTIONS lead rule requires. The pyeong main description also has no concrete number, against the description rule.",
+  "evidence": "pyeong/page.tsx:12 description: \"제곱미터(㎡)를 평으로, 평을 ㎡로 바로 변환합니다. 아파트 전용면적 59㎡, 84㎡가 몇 평형인지 ... 확인하세요.\" It has no number, and the title asks \"84㎡ 몇 평?\" without answering. pyeong/page.tsx:42 lead: \"제곱미터와 평을 서로 바꿔 줍니다...\". salary/page.tsx:93 lead: \"연봉이나 월급을 넣으면 ... 바로 계산해 드려요\", with no 4,000만원 answer. loan/page.tsx:83 and brokerage-fee/page.tsx:155 have the same problem. discharge/page.tsx:65 lead: \"입대일과 복무 형태를 고르면 ...\". It omits 육군 18개월, although the H1 says \"2026 군별 복무기간\".",
+  "fix": "Start each lead with the answer, then the UI sentence. pyeong: \"1평은 3.3058㎡, 1㎡는 0.3025평이라 전용 84㎡는 25.41평(약 34평형)입니다.\" Also add this to the description. salary: \"2026년 연봉 4,000만원의 월 실수령액은 {EX.monthlyNet}입니다.\" discharge: \"2026년 복무기간은 육군·해병대 18개월, 해군 20개월, 공군 21개월입니다.\" loan: \"1억을 연 4%로 30년 원리금균등 상환하면 월 {exEq.firstPayment}입니다.\" brokerage-fee: \"5억 아파트 매매 복비 상한은 200만원(0.4%)입니다.\""
+ },
+ {
+  "id": "related-orphans",
+  "severity": "minor",
+  "lens": "seo-structure",
+  "slug": "shared",
+  "file": "src/lib/tools.ts",
+  "problem": "relatedTools() never links to car-tax or bmi from any page's \"같이 쓰는 계산기\" block. Together with their programmatic pages, that is 73 URLs that get only footer and home-page links and no contextual ones. The cause is that car-tax is 8th of 8 in the money category, and the block is cut at 6.",
+  "evidence": "tools.ts:69-74: `[...same, ...others].slice(0, count)` with count 6. Simulating relatedTools for all 25 slugs gives inbound counts car-tax 0 and bmi 0, while salary and age get 16 each. Every money tool has 7 same-category siblings, so the 7th (car-tax, last in TOOLS order) is always dropped.",
+  "fix": "This is a shared-file change, so report it to the orchestrator. Add an optional `related?: string[]` to Tool, with curated pairs: loan↔acquisition-tax/brokerage-fee/rent-conversion, car-tax↔loan/vat, bmi↔due-date/age, salary↔severance/unemployment. relatedTools() should use the curated list first, then same-category, then popular. Alternatively, rotate same-category picks so that every tool appears in at least 2 blocks."
+ },
+ {
+  "id": "discharge-past",
+  "severity": "minor",
+  "lens": "seo-structure",
+  "slug": "discharge",
+  "file": "src/app/discharge/[month]/page.tsx",
+  "problem": "Enlistment-month pages for 2024-06 to 2024-12 now describe service that has fully ended for every branch, but they still use future tense and stay indexed. The dday event pages handle the same situation with past-tense copy and noindex.",
+  "evidence": "src/lib/calc/discharge.ts:216 sets PAGE_FIRST_MONTH = { y: 2024, m: 6 }. With 21 months for 공군, a 2024-12 enlistment ends by 2026-09-29, before 2026-10-09. Line 106 lead: \"${y}년 ${m}월에 입대하면 ... 전역합니다\". generateMetadata (lines 53-58) never sets noindex. Compare dday/[event]/page.tsx:60-61: `noindex: past`.",
+  "fix": "Choose one approach. Either compute the latest discharge date (공군, last day of the month) against RULES_CHECKED_AT and, when it has passed, switch to past tense (\"전역했습니다\") and pass `noindex: true` as dday does, or start the page list at the first month that still has soldiers in service. Keep 2027 months only if 입영 일정 demand exists."
+ },
+ {
+  "id": "sev-min-year",
+  "severity": "minor",
+  "lens": "ux-a11y-code",
+  "slug": "severance",
+  "file": "src/app/severance/SeveranceCalculator.tsx",
+  "problem": "The date inputs have no lower year limit, so a half-typed year (Chrome passes \"0002-…\", \"0020-…\", \"0202-…\" while you type a year) is calculated as a real date. The result shows a 퇴직금 for a tenure of thousands of years.",
+  "evidence": "Line 60: `const hire = parseYMD(s.s);` and parseYMD (src/lib/date.ts:18) accepts any 4-digit year. Line 105: `<DateField label=\"입사일\" value={s.s} …/>` has no min/max, and nothing between lines 69-84 checks the year. src/lib/calc/dday.ts:136-137 says the native date input sends \"0002-…\", \"0020-…\", \"0202-…\" while a year is typed. Age (MIN_YEAR, AgeCalculator.tsx:19,29), due-date (isUsable, :74-76), dday (parseInputDate) and subscription-score (checkDateInputs MIN_YEAR) all guard against this; severance does not. Example: 입사일 0202-03-02 with the default 퇴직일 and 월 300만원 gives termDays of about 666,000 and an estimated hero of about 53억원 (not run), with 근속연수 of about 1,825년 in the tax rows. A user who stops at \"202\" keeps that result.",
+  "fix": "Reject years below 1900 (or 1000) for both 입사일 and 퇴직일 and show a CalcNotice such as \"입사일은 1900년 이후 날짜로 넣어 주세요.\". Also pass min=\"1900-01-01\" max=\"2100-12-31\" to both DateFields, the same as AgeCalculator."
+ },
+ {
+  "id": "leave-min-year",
+  "severity": "minor",
+  "lens": "ux-a11y-code",
+  "slug": "annual-leave",
+  "file": "src/app/annual-leave/AnnualLeaveCalculator.tsx",
+  "problem": "The same half-typed-year problem: a partial year in 입사일 is calculated as a real date and gives a nonsense statement.",
+  "evidence": "Line 68: `const hire = parseYMD(s.h);`, then lines 70-73 call calculateLeave directly. The DateField at lines 87-92 has no min/max and there is no year check. 입사일 \"0202-03-04\" (an intermediate Chrome value while typing 2024) gives \"근속 1,82x년 연차\" 25일 and \"입사일 202년 3월 4일\". calculateLeave also loops once per anniversary (annual-leave.ts:167), so it runs about 1,800 iterations.",
+  "fix": "Treat hire or asOf with y < 1900 as invalid and show a CalcNotice. Add min=\"1900-01-01\" max=\"2100-12-31\" to both DateFields."
+ },
+ {
+  "id": "hero-overflow-360",
+  "severity": "minor",
+  "lens": "ux-a11y-code",
+  "slug": "shared",
+  "file": "src/app/globals.css",
+  "problem": "The hero figure cannot wrap and sits next to a fixed-width seal. On a 360px phone, amounts of about 10 digits or more (10억원 and up) run under the red seal, and the largest amounts overflow the statement and make the page scroll sideways. Compound interest is the main trigger: it allows balances up to 1,000조원 and shows a stamp.",
+  "evidence": "globals.css:351 `font-size: clamp(1.5rem, 9cqi, 2.625rem)` and :357-358 `word-break: keep-all; overflow-wrap: normal;`. The .seal at :365-370 is `flex: none; width: 4.25rem`, and .statement-hero has gap 1rem and padding 1.25rem. My width estimates, not measured in a browser: at 360px the statement is 326px wide, so the font is about 29.3px and the value column is about 326−40−68−16 = 202px. An 11-digit amount such as 1억 at 10% for 50 years (≈145억, \"14,5xx,xxx,xxx원\") is about 7.7–8em, roughly 225–235px, which overlaps the seal. CompoundInterestCalculator.tsx:191 `value={formatWon(res.balance)}` with stamp=\"복리\" allows up to MAX_BALANCE 1e15 (compound-interest.ts:247). A 16-digit value is about 320px, which goes past the statement border, and nothing on body or the parents clips overflow-x.",
+  "fix": "In the shared CSS, either let .statement-hero wrap (flex-wrap: wrap) so the seal drops below a long value, or scale the font down by character count. In compound-interest you can also use koreanWon (억/조) for the hero once the balance is 10억 or more and keep the exact won amount in a row."
+ },
+ {
+  "id": "search-ios-zoom",
+  "severity": "minor",
+  "lens": "ux-a11y-code",
+  "slug": "shared",
+  "file": "src/components/ToolSearch.tsx",
+  "problem": "The header search box on every page uses a 15px font. iOS Safari auto-zooms the page when a field under 16px gets focus, so iPhone users get a zoomed page every time they tap search.",
+  "evidence": "Line 48: `className=\"h-9 w-full rounded-lg … text-[0.9375rem] …\"` (15px). layout.tsx:49-54 viewport sets no maximumScale (it shouldn't). All calculator inputs are 16px or larger (.field-input 1.125rem, .field-select and the date input 1rem), so this is the only field that triggers the zoom.",
+  "fix": "Use 16px on small screens, e.g. `text-base sm:text-[0.9375rem]`."
+ },
+ {
+  "id": "percent-negative-ios",
+  "severity": "minor",
+  "lens": "ux-a11y-code",
+  "slug": "percent",
+  "file": "src/app/percent/DecimalField.tsx",
+  "problem": "변화율 mode accepts negative A/B values (allowNegative), but the field always asks for the decimal keypad. The iOS decimal keypad has no minus key, so iPhone users cannot type a negative value; they can only paste one.",
+  "evidence": "DecimalField.tsx:66 `inputMode={decimals > 0 ? \"decimal\" : \"numeric\"}` does not depend on `allowNegative`. PercentCalculator.tsx:259 and :269 pass `allowNegative` for 이전 값/이후 값, and the footnote at :342-343 has copy specifically for `a < 0` (\"이전 값이 음수라 절댓값을 기준으로…\"), so negative values are an intended input.",
+  "fix": "When allowNegative is set, add a small \"± 부호\" button next to the box that flips the sign, or use inputMode=\"text\" for those two fields."
+ },
+ {
+  "id": "stepper-a11y",
+  "severity": "minor",
+  "lens": "ux-a11y-code",
+  "slug": "shared",
+  "file": "src/components/fields.tsx",
+  "problem": "Every StepperField's −/+ buttons have the same accessible name (\"하나 줄이기\"/\"하나 늘리기\") with no field name. The button that reaches min/max is also `disabled` while it has focus, which drops keyboard focus to <body>.",
+  "evidence": "Line 268 `aria-label=\"하나 줄이기\" … disabled={value <= min}` and line 275 `aria-label=\"하나 늘리기\" … disabled={value >= max}`. SalaryCalculator.tsx:168-189 renders two steppers (공제대상가족 수, 8~20세 자녀 수), so Tab announces two identical \"하나 늘리기\" buttons. Pressing + until max (e.g. 주 근무일수 7, 부양가족 6) disables the focused button.",
+  "fix": "Give the label an id and set `aria-labelledby` on each button (or build the aria-label from the field label). Use `aria-disabled` and ignore clicks instead of `disabled`, so focus stays on the button."
+ },
+ {
+  "id": "statement-live-region",
+  "severity": "minor",
+  "lens": "ux-a11y-code",
+  "slug": "shared",
+  "file": "src/components/Statement.tsx",
+  "problem": "The whole statement body is a polite live region, so for screen-reader users every keystroke in a number box queues announcements of every changed row, footnote and total (often 10–20 values).",
+  "evidence": "Line 33: `<div className=\"statement-body\" aria-live=\"polite\">` wraps the hero, all StatementSection rows and the footnotes. Every calculator re-renders the full statement on each keystroke; for example the salary statement has about 13 rows plus the total and footnote. CalcNotice already provides role=\"status\" for the empty or invalid state.",
+  "fix": "Remove aria-live from .statement-body. Announce only the headline: a visually hidden role=\"status\" with the hero label and value, or aria-live plus aria-atomic on .statement-hero."
+ },
+ {
+  "id": "hint-describedby",
+  "severity": "minor",
+  "lens": "ux-a11y-code",
+  "slug": "shared",
+  "file": "src/components/fields.tsx",
+  "problem": "Field hints are not linked to their controls, so screen readers do not read essential instructions and warnings when a field gets focus.",
+  "evidence": "fields.tsx:33 (FieldFrame), :176 (SegmentedField) and :301 (CheckboxField) render `<p className=\"field-hint\">{hint}</p>` with no id, and no input, select, radiogroup or checkbox has aria-describedby. The same markup is copied into loan/DecimalField.tsx:102, percent/DecimalField.tsx:99, salary/DecimalField.tsx, brokerage-fee/DraftNumberField.tsx and hourly-wage/HoursField.tsx:81. Critical guidance lives only in hints, e.g. SeveranceCalculator.tsx:110-115 (퇴직일 = 마지막 근무일의 다음 날) and the hourly-wage below-minimum-wage warning passed as `hint`.",
+  "fix": "Generate a hintId with useId, put it on the hint <p>, and add aria-describedby={hint ? hintId : undefined} to the control (to the radiogroup for SegmentedField). Mirror this in the five local copies."
+ },
+ {
+  "id": "hw-2027-net-two-values",
+  "severity": "major",
+  "lens": "consistency",
+  "slug": "hourly-wage",
+  "file": "src/app/hourly-wage/tables.tsx",
+  "problem": "Each /hourly-wage/<hours>/ page shows two different after-deduction (4대보험 공제 후) amounts for the same wage of 10,700원 and the same weekly hours. YearCompareTable computes its 2027 column with rateYear 2027, which uses 국민연금 5.0%. WageTable's 10,700원 row calls payForWeeklyHours(hours, w) with the default rateYear 2026, which uses 4.75%. The calculator's \"2027 최저 10,700\" preset also uses 2026 rates (calcHourly → insuredDeductions without a rateYear) and labels the row \"4.75%\".",
+  "evidence": "tables.tsx YearCompareTable: `const b = payForWeeklyHours(hours, MIN_WAGE_2027, 2027);` vs tables.tsx WageTable: `const p = payForWeeklyHours(hours, w);` over WAGE_TABLE = [10_320, 10_700, ...]. hourly-wage.ts: `export function payForWeeklyHours(weeklyHours, wage, rateYear: RateYear = 2026)`. [hours]/page.tsx renders both <YearCompareTable hours={h} /> and <WageTable hours={h} />. For 주 40시간 the gross is 2,236,300 and the pension base is 2,236,000, so 국민연금 is 106,210원 at 4.75% and 111,800원 at 5.0%. Health (80,390), 장기요양 (10,560), 고용 (20,120) and tax are the same in both, so the two after-deduction figures on /hourly-wage/40/ differ by 5,590원.",
+  "fix": "Make WageTable follow one stated rate year and label it.\n- Option A (smallest change): rename the column in `tables.tsx:143` to \"4대보험 공제 후 (2026년 요율)\". Add a sentence after the WageTable intro in `[hours]/page.tsx:202-204`: the 10,700원 row uses 2026 요율, and the 2027 figure with 국민연금 5.0% is in the 2026·2027 table above.\n- Option B: in WageTable, call `payForWeeklyHours(hours, w, w === MIN_WAGE_2027 ? 2027 : 2026)` and mark that row \"2027 요율\". Then the 10,700 row matches the YearCompare 2027 column. Doing this also makes the `hourlyBasis()` line wrong, so rewrite it to something like \"4대보험 2026년 요율 (2027년 열은 국민연금 5.0%)\".\n\nFor the calculator (another agent is editing it now), when `s.w === MIN_WAGE_2027` and mode is \"insured\", add a hint saying the deductions use 2026 요율 and the 2027 국민연금 is 5.0%. Optionally pass rateYear 2027 through `calcHourly` → `insuredDeductions` and change the pension note from the hard-coded \"4.75%\" to match."
+ },
+ {
+  "id": "2027-insurance-status-contradiction",
+  "severity": "minor",
+  "lens": "consistency",
+  "slug": "shared",
+  "file": "src/app/minimum-wage/MinimumWageCalculator.tsx",
+  "problem": "Three tools describe the status of 2027 4대보험 rates differently and handle 2027 take-home pay differently. minimum-wage refuses to show 2027 take-home pay because the rates are \"not yet set\". hourly-wage shows 2027 take-home pay with legislated pension at 5.0% and assumes 2026 values for the rest, and calls the health rate unconfirmed. salary says the 2027 health rate was announced as frozen at 7.19%.",
+  "evidence": "MinimumWageCalculator.tsx: \"2027년 4대보험 요율은 아직 확정 전이라 세후 금액은 빼고 보여 드려요.\" | hourly-wage/[hours]/page.tsx: \"2027년 열은 법으로 정해진 국민연금 인상(근로자 4.75% → 5.0%)만 반영하고, 아직 확정되지 않은 건강·장기요양·고용보험 요율과 간이세액표는 2026년과 같다고 가정했습니다.\" | salary/page.tsx FAQ: \"2027년 건강보험료율은 7.19%로 동결한다고 발표됐고, 고용보험료율 인상안은 2026년 10월 현재 확정되지 않았습니다.\" docs/research/insurance-2026.md lists health_insurance_rate_2027 = 7.19% (frozen, 건정심 2026-09-08, medium).",
+  "fix": "1. Fix the wrong statement first. In src/app/hourly-wage/[hours]/page.tsx:196, change the note to say the health rate is frozen at 7.19% (건정심 2026-09-08 의결), and that only the 장기요양·고용보험 rates and the 간이세액표 are assumed at 2026 values. Example: \"2027년 열은 법으로 정해진 국민연금 인상(근로자 4.75% → 5.0%)과 7.19%로 동결된 건강보험료율을 반영하고, 아직 정해지지 않은 장기요양·고용보험 요율과 간이세액표는 2026년과 같다고 가정했습니다.\" Update the comment in src/lib/calc/hourly-wage.ts:23-25 the same way.\n\n2. Make minimum-wage consistent with it. The simplest option is to reword MinimumWageCalculator.tsx:194 (and the comment at src/lib/calc/minimum-wage.ts:202), e.g. \"2027년 장기요양·고용보험 요율과 간이세액표가 아직 정해지지 않아 세후 금액은 빼고 보여 드려요\". The better option is to show a labelled 2027 estimate with the same rules as hourly-wage's `insuredDeductions(…, 2027)`, so both tools give the same number for the same case.\n\n3. Optional: put the 2027 status in one shared place, such as a comment or constant in src/lib/rates/insurance.ts (pension 5.0% legislated; health 7.19% frozen per 건정심 2026-09-08, 고시 not checked; 장기요양 and 고용 1.0% proposal undecided as of 2026-10-09). Salary FAQ line 83 already matches this and needs no change."
+ },
+ {
+  "id": "nongteuk-85-vs-100",
+  "severity": "minor",
+  "lens": "consistency",
+  "slug": "acquisition-tax",
+  "file": "src/lib/calc/acquisition-tax.ts",
+  "problem": "acquisition-tax says homes up to 전용 85㎡ are exempt from 농어촌특별세, with no exception. pyeong correctly qualifies 국민주택규모 as 85㎡ only \"수도권·도시지역 기준\". Under 주택법 제2조제6호 the limit is 100㎡ in 읍·면 areas outside 수도권 that are not 도시지역, and the 농특세 exemption follows 국민주택규모. So acquisition-tax would charge 0.2% 농특세 on an 85~100㎡ home in such an area.",
+  "evidence": "acquisition-tax.ts header: \"제4조 제9호·제11호: 서민주택(국민주택규모, 전용 85㎡ 이하)은 비과세.\" AcquisitionTaxCalculator.tsx hint: \"85㎡ 이하는 농어촌특별세가 없어요.\" acquisition-tax/page.tsx: \"농어촌특별세는 전용면적 85㎡ 이하 주택에는 붙지 않습니다.\" vs pyeong.ts:29 \"국민주택규모 = 전용 85㎡ 이하 (수도권·도시지역 기준)\" and pyeong/[m2]/page.tsx: \"국민주택규모는 전용 85㎡ 이하(수도권·도시지역 기준)\".",
+  "fix": "Don't change the calculation. Make the toggle mean 국민주택규모 instead of a flat 85㎡:\n(1) AcquisitionTaxCalculator.tsx:147-150: keep the option labels short (\"85㎡ 이하\"/\"85㎡ 초과\"). Change the hint to \"전용 84㎡(흔히 34평형)까지는 85㎡ 이하예요. 수도권 밖 도시지역이 아닌 읍·면은 100㎡까지 '85㎡ 이하'로 고르세요. 이 범위는 농어촌특별세가 없어요.\"\n(2) page.tsx:96 and :244-245: change the wording to \"전용 85㎡(수도권 밖 도시지역이 아닌 읍·면은 100㎡) 이하 주택에는 농어촌특별세가 붙지 않습니다.\"\n(3) acquisition-tax.ts:17: change the comment to \"서민주택(주택법 제2조제6호 국민주택규모: 전용 85㎡, 수도권 외 비도시 읍·면 100㎡ 이하, 시행령 제4조⑤)은 비과세.\"\n(4) sources.ts:34: change the 농어촌특별세법 detail to name the 100㎡ exception as well."
+ },
+ {
+  "id": "paymonth-pinned-vs-live",
+  "severity": "minor",
+  "lens": "consistency",
+  "slug": "shared",
+  "file": "src/lib/calc/hourly-wage.ts",
+  "problem": "The salary calculator applies the 4대보험 rules for the current month (rulePayMonth(today)) and its page says so. hourly-wage and minimum-wage always use the October 2026 rules. From November 2026 the salary calculator switches 장기요양 to 건강보험료 × 0.1314, but the other two keep the exact 0.9448/7.19 ratio. The same monthly taxable pay will then show a 장기요양 amount 10원 different between tools.",
+  "evidence": "hourly-wage.ts: `export const HOURLY_PAY_MONTH = \"2026-10\";` (RATE_PAY_MONTH 2026). minimum-wage.ts netMonthly2026: `employeeInsurance(monthly, DEFAULT_PAY_MONTH)` with salary.ts `DEFAULT_PAY_MONTH = \"2026-10\"`. SalaryCalculator.tsx: `const payMonth = rulePayMonth(today.y, today.m);`. salary/page.tsx: \"계산기는 접속한 달의 규칙을 자동으로 적용합니다.\" Example: monthly taxable 2,345,678 gives health 84,320, so 장기요양 is 11,080 (exact ratio, hourly-wage) vs 11,070 (0.1314, salary from 2026-11). This matches the vector in docs/research/insurance-2026.md.",
+  "fix": "Make the client calculators follow the visitor's current month, as salary already does, and let each static page name its own fixed month.\n\n1. `HourlyWageCalculator.tsx`:\n   - Get `today` from `useToday()`.\n   - Pass `payMonth: rulePayMonth(today.y, today.m)` into `calcHourly` at line 50.\n   - Replace the fixed footnote text \"2026년 10월 요율\" at line 220 with `${payMonthLabel(payMonth)} 요율`.\n2. `minimum-wage.ts`:\n   - Give `netMonthly2026` an optional `payMonth = DEFAULT_PAY_MONTH` parameter.\n   - Pass it to both `employeeInsurance` and `monthlyWithholding`.\n3. `MinimumWageCalculator.tsx`:\n   - Call `netMonthly2026(r.monthly, rulePayMonth(today.y, today.m))`.\n   - Name that month in the \"세후 금액은 … 요율\" footnote.\n4. Leave the static pages (`hourly-wage/[hours]/page.tsx`, `minimum-wage/page.tsx` net26) on `DEFAULT_PAY_MONTH`, and add \"2026년 10월분 기준\" to their prose. Optionally add the November figure where it differs, as `salary/[amount]/page.tsx` does with `r11`.\n\nDo this after the other agent's exact-hours edit lands in those two directories. If the 0.1314 switch later proves wrong, remove it from `insurance.ts` instead. Either way, all three tools must give the same 장기요양 for the same pay and month."
+ },
+ {
+  "id": "privacy-contact-missing",
+  "severity": "major",
+  "lens": "content-quality",
+  "slug": "shared",
+  "file": "src/app/privacy/page.tsx",
+  "problem": "The privacy policy tells users to send inquiries to a contact listed on the 소개 page, but no contact exists anywhere on the site. The about page, the footer and src/lib/site.ts have no email, form or operator name. For a site full of YMYL pages (tax, pay, pregnancy), and one that plans to run AdSense according to privacy section 3, this is a broken promise and a trust gap.",
+  "evidence": "src/app/privacy/page.tsx:34 \"개인정보와 관련한 문의는 사이트 소개 페이지에 안내된 연락처로 보내 주세요.\" src/app/about/page.tsx has only four sections: intro, 계산 기준, 개인정보, 주의할 점. Grepping for 연락/문의/메일/@ in about/page.tsx, SiteFooter.tsx and lib/site.ts finds nothing.",
+  "fix": "Add a real contact channel to the 소개 page and put it in a shared constant, for example SITE_CONTACT in src/lib/site.ts. Use an email address or the GitHub repository's issues URL, plus an operator name or handle. Show it in a new \"문의\" section in about/page.tsx and link it from SiteFooter. Privacy line 34 can then use the same constant directly instead of pointing readers to another page. If no contact channel will be published, reword line 34 so it does not promise one. Because about/page.tsx and site.ts are shared files, this goes through a shared-file change request."
+ },
+ {
+  "id": "privacy-local-storage",
+  "severity": "minor",
+  "lens": "content-quality",
+  "slug": "shared",
+  "file": "src/app/privacy/page.tsx",
+  "problem": "The privacy policy says the site does not store entered values. The char-count tool does store the user's full text in sessionStorage, and in localStorage when '창을 닫아도 보관' is on. The policy never mentions browser-side storage, so it contradicts the char-count page's own FAQ.",
+  "evidence": "privacy/page.tsx:7 \"계산에 입력한 값을 서버로 보내거나 저장하지 않습니다\"; :19-20 \"이 값을 서버로 전송하거나 저장하지 않습니다\". char-count/CharCounter.tsx:29-39 uses window.sessionStorage / window.localStorage. char-count/page.tsx FAQ: \"지금 탭에만 잠시 저장하고, ‘창을 닫아도 보관’을 켜면 이 기기 브라우저에 남습니다.\"",
+  "fix": "Add one sentence to section 1 of the privacy policy, for example: \"글자수 세기는 새로고침에 대비해 입력한 글을 이 브라우저(세션/로컬 저장소)에만 보관하며 서버로 보내지 않습니다.\""
+ },
+ {
+  "id": "loan-dsr-stale",
+  "severity": "minor",
+  "lens": "content-quality",
+  "slug": "loan",
+  "file": "src/app/loan/page.tsx",
+  "problem": "The DSR section stops at the October 2025 rules. It says 3단계 스트레스 DSR applies 기본 1.5% to 주택담보대출 in general. It leaves out that 지방(비수도권) 주담대 is still on the 2단계 basis (1.5% × 50% ≈ 0.75%p) through 2026-12-31, under the 은행연합회 '2026년 하반기 스트레스 DSR 운영방안' published 2026-06-30. It also gives no 기준일 for this regulatory snapshot, even though the page's basis says the rules were checked 2026-10-09.",
+  "evidence": "loan/page.tsx:219-221 \"2025년 7월 1일부터 3단계 스트레스 DSR이 시행되어 주택담보대출과 기타대출, 잔액 1억원을 넘는 신용대출에 스트레스 금리(기본 1.5%)를 더해 DSR을 계산합니다. 2025년 10월 16일부터는 수도권·규제지역 ... 3%로 올랐습니다.\" Nothing in the section is dated 2026.",
+  "fix": "Add a sentence such as \"지방 주택담보대출은 2026년 12월 31일까지 2단계 기준(스트레스 금리 1.5%의 50%)이 유지됩니다(은행연합회 2026년 하반기 운영방안).\" Also add an \"(2026년 10월 9일 기준)\" stamp to the DSR paragraph, and link the 은행연합회 or 금융위 notice."
+ },
+ {
+  "id": "compound-no-invest-disclaimer",
+  "severity": "minor",
+  "lens": "content-quality",
+  "slug": "compound-interest",
+  "file": "src/lib/calc/compound-interest.ts",
+  "problem": "The /compound-interest/monthly-10-30y-10/ scenario projects money put into 'S&P 500 지수 상품' at 연 10%, described as the index's long-run average. The figure has no citation. Neither the compound-interest main page nor the scenario pages carry the explicit 'not investment advice' disclaimer that stock-average uses. The main page only has a 원금 손실 caveat, and the scenario template has none.",
+  "evidence": "compound-interest.ts:355 \"월 10만원을 미국 S&P 500 지수 상품에 30년 동안 넣으면 ... 연 10%는 S&P 500의 장기 연평균 수익률(배당 재투자, 달러 기준, 물가 반영 전)로 흔히 인용되는 값\" (rendered at compound-interest/[scenario]/page.tsx:162, no source link). Compare stock-average/page.tsx:190 \"특정 종목의 매수나 매도를 권하는 투자 조언이 아닙니다\". The only caveat in compound-interest/page.tsx is at :256-257, and it does not appear on scenario pages.",
+  "fix": "Link a source for the 10% figure, for example S&P Dow Jones Indices or another long-run total-return dataset, with its period. Add the stock-average style note to both compound-interest/page.tsx and [scenario]/page.tsx: \"이 계산은 일정 수익률을 가정한 예시이며 투자 권유가 아닙니다. 과거 수익률은 미래 수익을 보장하지 않습니다.\""
+ },
+ {
+  "id": "hourly-probation-incomplete",
+  "severity": "minor",
+  "lens": "content-quality",
+  "slug": "hourly-wage",
+  "file": "src/app/hourly-wage/page.tsx",
+  "problem": "The hourly-wage page lists the probation 90% conditions as requiring a 1년 이상 contract only. It drops the 기간을 정하지 않은 근로계약 (정규직) case. The sibling minimum-wage page includes that case, so the two pages contradict each other, and a reader on an open-ended contract may conclude the rule does not cover them.",
+  "evidence": "hourly-wage/page.tsx:162 \"근로계약 기간이 1년 이상일 것 (1년 미만 단기 알바는 수습이어도 감액 불가)\". minimum-wage/page.tsx: \"근로계약 기간을 1년 이상으로 정했거나, 기간을 정하지 않은 근로계약(정규직 등)일 것\".",
+  "fix": "Use the minimum-wage wording: \"근로계약 기간을 1년 이상으로 정했거나 기간을 정하지 않은 계약일 것\"."
+ },
+ {
+  "id": "voice-mixing",
+  "severity": "minor",
+  "lens": "content-quality",
+  "slug": "shared",
+  "file": "src/app/pyeong/page.tsx",
+  "problem": "Several pages break the CONVENTIONS rule of 합니다체 for long-form prose and 해요체 for UI microcopy. The pyeong page is the canonical reference that other agents copy, and its prose uses 해요체. Some leads, the UI microcopy, end in 합니다체 instead. Some meta descriptions switch register mid-text.",
+  "evidence": "pyeong/page.tsx:57 prose \"단지마다 1~2평 다를 수 있어요.\" age/page.tsx:79 lead \"...바로 알려 드립니다.\" percent/page.tsx:83 lead \"...계산해 드려요. ... 답을 보여 드립니다.\" minimum-wage/page.tsx:24 and vat/page.tsx:17 descriptions are 합니다체 but end in \"...계산해요.\" app/page.tsx:39 \"계산합니다. ... 공유할 수 있어요.\"",
+  "fix": "Pyeong prose: \"다를 수 있습니다.\" Age and percent leads: \"알려 드려요\" / \"보여 드려요\". Meta descriptions: use one register, for example \"...도 계산합니다.\""
+ }
+]

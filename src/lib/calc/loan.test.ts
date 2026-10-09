@@ -9,6 +9,7 @@ import {
   LOAN_TABLE_RATES,
   loanAmountLabel,
   loanDefaultYears,
+  loanPageHeadline,
   loanTableYears,
   monthlyRate,
   REPAY_METHODS,
@@ -287,5 +288,22 @@ describe("programmatic pages", () => {
     const s = equalPaymentSummary(100_000_000, 4, 30);
     expect(s.payment).toBe(477_415);
     expect(s.totalPayment).toBe(100_000_000 + s.totalInterest);
+  });
+});
+
+describe("loanPageHeadline (title/H1 of /loan/<만원>/)", () => {
+  it("puts the 연 4% · 대표 기간 monthly payment in both the title and the H1", () => {
+    // PMT(4%/12, 360, -100,000,000) = 477,415.30 → 477,415원
+    expect(loanPageHeadline(10000)).toEqual({
+      title: "1억 대출 이자 - 연 4% 30년 월 상환액 477,415원",
+      h1: "1억 대출 이자: 연 4% 30년이면 월 477,415원",
+    });
+    // PMT(4%/12, 60, -30,000,000) = 552,495.66 → 552,496원
+    expect(loanPageHeadline(3000).h1).toBe("3,000만원 대출 이자: 연 4% 5년이면 월 552,496원");
+  });
+  it("keeps every title within 45 characters and unique", () => {
+    const titles = LOAN_PAGE_MANWON.map((m) => loanPageHeadline(m).title);
+    for (const t of titles) expect(t.length).toBeLessThanOrEqual(45);
+    expect(new Set(titles).size).toBe(titles.length);
   });
 });

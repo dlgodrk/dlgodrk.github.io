@@ -8,9 +8,14 @@ import {
   isTaxType,
   isValidSavingsInput,
   MAX_MONTHLY,
+  monthsLabel,
+  monthsToReach,
   periodLabel,
   rateLabel,
+  SAVINGS_HEADLINE_RATE,
   SAVINGS_PAGE_MONTHLY,
+  SAVINGS_TARGETS,
+  savingsPageHeadline,
   savingsInterest,
   savingsInterestOfFirst,
   TABLE_PERIODS,
@@ -310,5 +315,41 @@ describe("validation and labels", () => {
       expect(new Set(list).size).toBe(list.length);
     }
     expect(SAVINGS_PAGE_MONTHLY).toEqual([10, 20, 30, 50, 100, 200]);
+  });
+});
+
+describe("programmatic page headline and 목표 금액 helpers", () => {
+  it("puts the 연 3.5% 1년 세후 이자 into the title and H1", () => {
+    // 500,000 × 3.5% ÷ 12 × 78 = 113,750원; 소득세 15,920 + 지방소득세 1,590 = 17,510원 → 세후 96,240원
+    expect(SAVINGS_HEADLINE_RATE).toBe(3.5);
+    expect(savingsPageHeadline(50)).toEqual({
+      title: "월 50만원 적금 1년 이자 - 연 3.5% 세후 96,240원",
+      h1: "월 50만원 적금 1년 이자: 연 3.5%면 세후 96,240원",
+    });
+  });
+  it("keeps every title within 45 characters and unique", () => {
+    const titles = SAVINGS_PAGE_MONTHLY.map((m) => savingsPageHeadline(m).title);
+    for (const t of titles) expect(t.length).toBeLessThanOrEqual(45);
+    expect(new Set(titles).size).toBe(titles.length);
+  });
+  it("monthsToReach finds the shortest single 적금 whose 세후 만기 수령액 reaches the target", () => {
+    // 월 50만원: 19개월이면 원금 950만원 + 세후 이자 약 23만원 < 1천만원, 20개월이면 원금만 1천만원
+    expect(monthsToReach(500_000, 10_000_000, 3.5)).toBe(20);
+    // 월 100만원 · 90개월: 원금 9,000만원 + 세전 11,943,750원 − 세금 1,839,330원 = 100,104,420원 ≥ 1억
+    // 89개월: 원금 8,900만원 + 세후 약 988만원 < 1억
+    expect(monthsToReach(1_000_000, 100_000_000, 3.5)).toBe(90);
+    expect(calcSavings({ monthly: 1_000_000, months: 90, ratePct: 3.5 }).maturity).toBe(100_104_420);
+    // 월 10만원으로는 120개월(원금 1,200만원) 안에 3천만원에 닿지 않는다
+    expect(monthsToReach(100_000, 30_000_000, 3.5)).toBeNull();
+    expect(monthsToReach(0, 10_000_000, 3.5)).toBeNull();
+    // 금리 0%면 원금만으로 계산한 개월 수와 같다
+    expect(monthsToReach(300_000, 10_000_000, 0)).toBe(34);
+    expect(SAVINGS_TARGETS).toEqual([10_000_000, 30_000_000, 50_000_000, 100_000_000]);
+  });
+  it("monthsLabel", () => {
+    expect(monthsLabel(7)).toBe("7개월");
+    expect(monthsLabel(24)).toBe("2년");
+    expect(monthsLabel(100)).toBe("8년 4개월");
+    expect(monthsLabel(300)).toBe("25년");
   });
 });

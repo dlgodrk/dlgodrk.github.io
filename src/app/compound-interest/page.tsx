@@ -15,6 +15,7 @@ import {
   DEFAULT_YEARS,
   doublingYears,
   effectiveAnnualRate,
+  INVEST_DISCLAIMER,
   realValue,
   rule72Years,
   SCENARIOS,
@@ -82,7 +83,7 @@ export default function CompoundInterestPage() {
     <ToolShell
       slug="compound-interest"
       h1="복리 계산기 (적립식·거치식)"
-      lead="초기 원금과 매월 적립액, 연 수익률, 기간을 넣으면 복리로 불어난 만기 금액과 연도별 수익을 바로 계산해 드려요. 월·분기·연복리와 세금, 물가까지 반영할 수 있어요."
+      lead={`1,000만원에 매달 50만원씩 10년 동안 넣고 연 5% 월복리로 굴리면 만기 금액은 ${formatWon(ex.balance)}입니다. 원금과 적립액, 수익률, 기간을 넣으면 연도별 수익과 세금, 물가 반영 금액까지 바로 계산해 드려요.`}
       basis={`월·분기·연복리 표준 공식 · 세금은 ${RULE_YEAR}년 이자·배당소득 원천징수율 15.4% 단순 가정 · 2026년 10월 9일 확인`}
       calculator={<CompoundInterestCalculator />}
       faq={FAQ}
@@ -259,6 +260,7 @@ export default function CompoundInterestPage() {
           정확합니다.
         </li>
       </ul>
+      <p className="note">{INVEST_DISCLAIMER}</p>
 
       <h2>자주 찾는 복리 계산</h2>
       <nav aria-label="복리 계산 시나리오 페이지" className="link-grid">

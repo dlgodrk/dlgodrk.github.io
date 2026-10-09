@@ -1,8 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { formatYMD, parseYMD, type YMD } from "@/lib/date";
 import {
+  cohortStatus,
   DISCHARGE_PAGE_MONTHS,
   dischargeDate,
+  hasReserveDuty,
+  monthAllDischarged,
+  PAGE_BRANCHES,
+  reserveSpan,
+  reserveYearIn,
   firstOfMonthOnOrAfter,
   formatDotDate,
   isBeforeShorteningDone,
@@ -178,6 +184,64 @@ describe("programmatic month pages", () => {
   });
   it("formats compact dates", () => {
     expect(formatDotDate(d("2026-12-01"))).toBe("2026.12.01 (화)");
+  });
+});
+
+describe("예비군 연차 (예비군법 제3조①2: 복무를 마친 날의 다음 날부터 8년이 되는 해의 12월 31일까지)", () => {
+  it("makes the year after discharge 1년차 and ends on 12/31 of 전역 연도 + 8", () => {
+    const s = reserveSpan(d("2026-10-08"));
+    expect(s.firstYear).toBe(2027);
+    expect(s.lastYear).toBe(2034);
+    expect(formatYMD(s.endDate)).toBe("2034-12-31");
+  });
+  it("handles a 12월 31일 discharge (next day is 1월 1일, still ends 8 years later on 12/31)", () => {
+    // 2025-12-31 전역 → 다음 날 2026-01-01부터 8년이 되는 날 2033-12-31 → 그해 12월 31일까지
+    expect(reserveSpan(d("2025-12-31")).lastYear).toBe(2033);
+  });
+  it("counts 연차 by calendar year", () => {
+    const fin = d("2025-12-01");
+    expect(reserveYearIn(fin, 2024)).toBeNull();
+    expect(reserveYearIn(fin, 2025)).toBe(0); // 전역한 해는 연차에 넣지 않음
+    expect(reserveYearIn(fin, 2026)).toBe(1);
+    expect(reserveYearIn(fin, 2033)).toBe(8);
+    expect(reserveYearIn(fin, 2034)).toBeNull();
+  });
+  it("applies to 현역·상근예비역 and 사회복무요원 only", () => {
+    const kinds = Object.fromEntries(SERVICE_TYPES.map((t) => [t.id, hasReserveDuty(t.kind)]));
+    expect(kinds).toMatchObject({ army: true, marine: true, navy: true, air: true, reserve: true, social: true });
+    expect(kinds).toMatchObject({ "ind-active": false, "ind-reserve": false, research: false, alt: false });
+  });
+});
+
+describe("입대 월 전체의 전역 상태 (월별 페이지 시제)", () => {
+  const today = d("2026-10-09");
+  it("marks 2024-12 enlistees as fully discharged for every branch", () => {
+    // 공군 2024-12-31 입대: 21개월 뒤 2026년 9월에는 31일이 없어 그 달 말일 2026-09-30 전역 (민법 제160조③)
+    expect(formatYMD(serviceEndDate(d("2024-12-31"), 21))).toBe("2026-09-30");
+    expect(cohortStatus(2024, 12, 21, today)).toBe("done");
+    expect(monthAllDischarged(2024, 12, today)).toBe(true);
+    expect(monthAllDischarged(2024, 6, today)).toBe(true);
+  });
+  it("marks 2025-01 as partly discharged: 육군·해군 done, 공군 ending", () => {
+    expect(cohortStatus(2025, 1, 18, today)).toBe("done");
+    expect(cohortStatus(2025, 1, 20, today)).toBe("done");
+    // 공군 2025-01-01 → 2026-09-30 (지남), 2025-01-31 → 2026-10-30 (아직)
+    expect(cohortStatus(2025, 1, 21, today)).toBe("ending");
+    expect(monthAllDischarged(2025, 1, today)).toBe(false);
+  });
+  it("tells serving, ending and before apart", () => {
+    expect(cohortStatus(2025, 4, 18, today)).toBe("ending"); // 4/1 → 2026-09-30, 4/30 → 2026-10-29
+    expect(cohortStatus(2025, 3, 20, today)).toBe("serving"); // 3/1 → 2026-10-31
+    expect(cohortStatus(2026, 10, 18, today)).toBe("serving");
+    expect(cohortStatus(2026, 11, 18, today)).toBe("before");
+  });
+  it("still counts the end date itself as served", () => {
+    // 육군 2025-04-30 입대 → 2026-10-29 전역: that day is not yet "done"
+    expect(cohortStatus(2025, 4, 18, d("2026-10-29"))).toBe("ending");
+    expect(cohortStatus(2025, 4, 18, d("2026-10-30"))).toBe("done");
+  });
+  it("lists the page branches in term order", () => {
+    expect(PAGE_BRANCHES.map((b) => b.months)).toEqual([18, 20, 21]);
   });
 });
 

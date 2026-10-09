@@ -6,8 +6,11 @@ import {
   basicIncomeTax,
   calcSeverance,
   convertedSalaryDeduction,
+  DATE_MAX,
+  DATE_MIN,
   firstEligibleRetireDate,
   hasOneYearService,
+  isDateInRange,
   oneYearBefore,
   retirementIncomeTax,
   retirementWithholding,
@@ -460,6 +463,23 @@ describe("calcSeverance with 소액부징수", () => {
     expect(r.tax!.localTax).toBe(0);
     expect(r.tax!.smallTaxWaived).toBe(true);
     expect(r.net).toBe(1_700_000);
+  });
+});
+
+describe("입력 범위 (1900-01-01 ~ 2100-12-31)", () => {
+  it("accepts the bounds and rejects half-typed years", () => {
+    expect(isDateInRange(d(DATE_MIN))).toBe(true);
+    expect(isDateInRange(d(DATE_MAX))).toBe(true);
+    expect(isDateInRange(d("1899-12-31"))).toBe(false);
+    expect(isDateInRange(d("2101-01-01"))).toBe(false);
+    // Chrome's date input passes these through while "2022" is typed.
+    for (const s of ["0002-03-02", "0020-03-02", "0202-03-02"]) expect(isDateInRange(d(s))).toBe(false);
+  });
+  it("does not calculate a 퇴직금 for a half-typed 입사일", () => {
+    const base = { retire: d("2026-10-01"), wage3m: 9_000_000, annualBonus: 0, annualLeavePay: 0, weekly15h: true };
+    expect(calcSeverance({ ...base, hire: d("0202-03-02") })).toBeNull();
+    expect(calcSeverance({ ...base, hire: d("2022-03-02"), retire: d("0202-10-01") })).toBeNull();
+    expect(calcSeverance({ ...base, hire: d("2022-03-02") })?.eligible).toBe(true);
   });
 });
 

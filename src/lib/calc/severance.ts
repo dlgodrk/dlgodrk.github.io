@@ -27,6 +27,22 @@ import { addDays, addMonths, compareYMD, diffDays, type YMD } from "@/lib/date";
 /** 계속근로 1년에 대해 지급하는 평균임금 일수 (근퇴법 제8조①). */
 export const SEVERANCE_DAYS_PER_YEAR = 30;
 
+// ─────────────────────────── 입력 범위 ───────────────────────────
+
+/**
+ * Dates the calculator accepts (also the date inputs' min/max). While a year is being typed, Chrome's
+ * native date input passes values such as "0002-…", "0020-…", "0202-…"; those must show a notice instead
+ * of a 퇴직금 for 1,800 years of service.
+ */
+export const DATE_MIN_YEAR = 1900;
+export const DATE_MAX_YEAR = 2100;
+export const DATE_MIN = `${DATE_MIN_YEAR}-01-01`;
+export const DATE_MAX = `${DATE_MAX_YEAR}-12-31`;
+
+export function isDateInRange(v: YMD): boolean {
+  return v.y >= DATE_MIN_YEAR && v.y <= DATE_MAX_YEAR;
+}
+
 // ───────────────────────────── 날짜 ─────────────────────────────
 
 /**
@@ -302,9 +318,10 @@ export type SeveranceResult = {
   net: number;
 };
 
-/** Full calculation. Returns null when 퇴직일 is not after 입사일. */
+/** Full calculation. Returns null when 퇴직일 is not after 입사일 or a date is outside DATE_MIN..DATE_MAX. */
 export function calcSeverance(input: SeveranceInput): SeveranceResult | null {
   const { hire, retire } = input;
+  if (!isDateInRange(hire) || !isDateInRange(retire)) return null;
   if (compareYMD(retire, hire) <= 0) return null;
   const termDays = serviceDays(hire, retire);
   const reasons: IneligibleReason[] = [];

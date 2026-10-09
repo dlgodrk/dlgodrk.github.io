@@ -18,6 +18,7 @@ import {
   SALE_TABLE_AMOUNTS,
   withVat,
 } from "./brokerage-fee";
+import { findAcqPage } from "./acquisition-tax";
 
 const MAN = 10_000;
 const EOK = 100_000_000;
@@ -367,5 +368,16 @@ describe("brokerage-fee: programmatic pages", () => {
   it("quick tables are sorted", () => {
     expect([...SALE_TABLE_AMOUNTS].sort((a, b) => a - b)).toEqual(SALE_TABLE_AMOUNTS);
     expect([...LEASE_TABLE_AMOUNTS].sort((a, b) => a - b)).toEqual(LEASE_TABLE_AMOUNTS);
+  });
+  it("every sale page has a same-price 취득세 page to cross-link", () => {
+    for (const p of BROKERAGE_FEE_PAGES.filter((x) => x.deal === "sale")) {
+      expect(findAcqPage(String(p.amount / MAN))).toBe(p.amount / MAN);
+    }
+  });
+  it("main-page lead numbers: 5억 매매 200만원(0.4%), 전세 3억 90만원(0.3%)", () => {
+    expect(maxFeeFor("house", "sale", 5 * EOK)).toBe(2_000_000);
+    expect(feeRule("house", "sale", 5 * EOK).rate).toBe(0.4);
+    expect(maxFeeFor("house", "jeonse", 3 * EOK)).toBe(900_000);
+    expect(feeRule("house", "jeonse", 3 * EOK).rate).toBe(0.3);
   });
 });

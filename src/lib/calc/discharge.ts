@@ -211,6 +211,76 @@ export const SAVINGS_MONTHLY_CAP = 550_000;
 /** 정부 재정지원금 = 만기 시 납입원금의 100% (병역법 시행령 제158조의2). */
 export const SAVINGS_MATCH_RATE = 1;
 
+/* ---------- 예비군 (예비군법 제3조①2·3) ---------- */
+
+/**
+ * 예비군 편성: 현역·상근예비역(②) 또는 사회복무요원 등 보충역(③)의 복무를 마친 병은 "그 복무를 마친 날의
+ * 다음 날부터 8년이 되는 해의 12월 31일까지" 예비군. 연차는 전역한 다음 해가 1년차이고 전역한 해는
+ * 연차에 넣지 않는다(그해 전역자는 동원훈련 대상 아님, 병무청 2024 병력동원훈련 안내). 장교·부사관은 다름.
+ * The 8th year is always (전역 연도 + 8): even a 12월 31일 전역 starts counting on 1월 1일 and ends 8년 뒤 12월 31일.
+ */
+export const RESERVE_YEARS = 8;
+
+/** Service kinds this site shows 예비군 years for (현역·상근예비역, 사회복무요원). */
+export function hasReserveDuty(kind: ServiceKind): boolean {
+  return kind === "soldier" || kind === "social";
+}
+
+export type ReserveSpan = {
+  /** Calendar year that is 예비군 1년차 (the year after the end date). */
+  firstYear: number;
+  /** Calendar year that is 8년차; 예비군 ends on its 12월 31일. */
+  lastYear: number;
+  /** Last day as 예비군 (lastYear-12-31). */
+  endDate: YMD;
+};
+
+export function reserveSpan(end: YMD): ReserveSpan {
+  const lastYear = end.y + RESERVE_YEARS;
+  return { firstYear: end.y + 1, lastYear, endDate: { y: lastYear, m: 12, d: 31 } };
+}
+
+/**
+ * 예비군 연차 in calendar year `year` for service that ended on `end`:
+ * 0 = the year of the end date (not counted yet), 1..8 = 연차, null = before the end year or after the 8th year.
+ */
+export function reserveYearIn(end: YMD, year: number): number | null {
+  const n = year - end.y;
+  return n >= 0 && n <= RESERVE_YEARS ? n : null;
+}
+
+/* ---------- a whole enlistment month (programmatic pages) ---------- */
+
+/**
+ * Where everyone who started a `months` term in month (y, m) stands on `today`:
+ *   before  — nobody has started yet (today is before the 1st)
+ *   serving — some or all have started, nobody has finished
+ *   ending  — some have finished (the 1st's end date has passed), others have not
+ *   done    — everyone has finished (the last day's end date is before today)
+ * "Finished" means the end date is strictly before today, like serviceProgress (the end date itself is still served).
+ */
+export type CohortStatus = "before" | "serving" | "ending" | "done";
+
+export function cohortStatus(y: number, m: number, months: number, today: YMD): CohortStatus {
+  const t = ymdKey(today);
+  if (ymdKey(serviceEndDate({ y, m, d: daysInMonth(y, m) }, months)) < t) return "done";
+  if (ymdKey(serviceEndDate({ y, m, d: 1 }, months)) < t) return "ending";
+  if (t < ymdKey({ y, m, d: 1 })) return "before";
+  return "serving";
+}
+
+/** 현역병 branches shown on the month pages, shortest term first (상근예비역 = 육군과 같은 18개월). */
+export const PAGE_BRANCHES = [
+  { label: "육군·해병대", months: 18 },
+  { label: "해군", months: 20 },
+  { label: "공군", months: 21 },
+] as const;
+
+/** True when every 현역병 who enlisted in (y, m) has been discharged by `today` (공군 21개월 is the longest). */
+export function monthAllDischarged(y: number, m: number, today: YMD): boolean {
+  return PAGE_BRANCHES.every((b) => cohortStatus(y, m, b.months, today) === "done");
+}
+
 /* ---------- programmatic pages: /discharge/<yyyy-mm>/ ---------- */
 
 export const PAGE_FIRST_MONTH = { y: 2024, m: 6 };

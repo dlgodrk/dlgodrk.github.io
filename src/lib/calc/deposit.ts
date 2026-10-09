@@ -343,3 +343,17 @@ export function depositAmountLabel(manwon: number): string {
   if (manwon >= 1000 && manwon % 1000 === 0) return `${manwon / 1000}천만원`;
   return `${formatNumber(manwon)}만원`;
 }
+
+/**
+ * Title and H1 of /deposit/<만원>/: 연 EXAMPLE_RATE_PCT% · 1년 · 단리 · 일반과세 세후 이자를 넣어 페이지마다 다르게 한다.
+ * title은 사이트 이름을 뺀 45자 이하. 1억 → h1 "1억 예금 이자: 연 3% 1년이면 세후 2,538,000원"
+ */
+export function depositPageHeadline(manwon: number): { title: string; h1: string } {
+  const label = depositAmountLabel(manwon);
+  const net = formatNumber(netInterestSimple(manwon * 10_000, EXAMPLE_RATE_PCT, 12));
+  const rate = formatNumber(EXAMPLE_RATE_PCT, 2);
+  return {
+    title: `${label} 예금 이자 - 연 ${rate}% 1년 세후 ${net}원`,
+    h1: `${label} 예금 이자: 연 ${rate}% 1년이면 세후 ${net}원`,
+  };
+}

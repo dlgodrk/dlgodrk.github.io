@@ -11,6 +11,7 @@ import {
   DEPOSIT_PAGE_MANWON,
   DEPOSIT_PROTECTION_LIMIT,
   depositAmountLabel,
+  depositPageHeadline,
   EXAMPLE_RATE_PCT,
   grossInterest,
   grossInterestByDays,
@@ -20,6 +21,7 @@ import {
   TABLE_MONTHS,
   TABLE_RATES,
 } from "@/lib/calc/deposit";
+import { approxWon, calcCompound, INVEST_DISCLAIMER, scenariosForLump } from "@/lib/calc/compound-interest";
 import { DepositCalculator } from "../DepositCalculator";
 
 // Only the listed amounts exist; anything else is a 404 (required for static export).
@@ -49,7 +51,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const label = depositAmountLabel(manwon);
   const r = yearCalc(manwon * 10_000);
   return pageMetadata({
-    title: `${label} 예금 이자 - 금리별 세후 이자표 (1년 만기)`,
+    title: depositPageHeadline(manwon).title,
     description: `${label}을 연 ${RATE}% 정기예금에 1년 맡기면 세전 이자 ${formatNumber(r.grossInterest)}원, 세금 15.4%를 떼고 세후 ${formatNumber(r.netInterest)}원을 받습니다. 연 2~5% 금리, 3·6·12·24개월별 세후 이자표와 월 이자 지급액을 확인하세요.`,
     path: `/deposit/${manwon}/`,
     keywords: [`${label} 예금 이자`, `${label} 정기예금 이자`, `${label} 이자 계산`, `${label} 1년 이자`, "예금 이자 계산기"],
@@ -99,6 +101,10 @@ export default async function DepositAmountPage({ params }: Props) {
             : `한 곳에 맡기면 ${formatWon(unprotected)}(원금 일부와 이자)은 보호받지 못합니다. 전액을 보호받으려면`
         } 최소 ${nInst}곳의 금융회사에 나눠 맡겨야 하며, 한 곳에 원금 ${manwonLabel(maxSafeManwon)} 이하로 넣으면 1년 이자까지 1억원 안에 들어갑니다.`;
 
+  // 복리로 오래 굴릴 때: 1년 예금 재예치(연복리, 세전)와 같은 원금의 복리 시나리오 (서로 링크).
+  const rollover = calcCompound({ principal: P, monthly: 0, ratePct: RATE, years: 10, compounding: "yearly" });
+  const scenarios = scenariosForLump(P);
+
   const idx = DEPOSIT_PAGE_MANWON.indexOf(manwon);
   const prev = idx > 0 ? DEPOSIT_PAGE_MANWON[idx - 1] : null;
   const next = idx < DEPOSIT_PAGE_MANWON.length - 1 ? DEPOSIT_PAGE_MANWON[idx + 1] : null;
@@ -136,7 +142,7 @@ export default async function DepositAmountPage({ params }: Props) {
       slug="deposit"
       path={`/deposit/${manwon}/`}
       extraCrumbs={[{ name: `${label} 예금 이자`, path: `/deposit/${manwon}/` }]}
-      h1={`${label} 예금 이자: 1년 만기 금리별 세후 이자`}
+      h1={depositPageHeadline(manwon).h1}
       lead={`${label}을 연 ${RATE}% 정기예금에 1년 맡기면 세전 이자 ${formatWon(r.grossInterest)}에서 세금 15.4%를 떼고 세후 ${formatWon(r.netInterest)}을 받습니다. 금리 2~5%, 기간 3~24개월별 세후 이자를 표로 정리했어요.`}
       basis={`${RULE_YEAR}년 세법 기준 · 단리 · 일반과세 15.4%(소득세 14% + 지방소득세 1.4%)`}
       calculator={<DepositCalculator initialAmount={P} />}
@@ -233,6 +239,37 @@ export default async function DepositAmountPage({ params }: Props) {
         들어 {label}을 연 {RATE}%로 6개월 맡기면 예치일수(181~184일)에 따라 세전 이자가 {formatWon(day181)}~
         {formatWon(day184)}으로, 개월 수로 계산한 {formatWon(sixMonths)}과 최대 {formatWon(sixGap)} 차이가 납니다.
       </p>
+
+      <h2>{label}을 오래 굴리면 (복리)</h2>
+      <p>
+        1년 만기 예금을 연 {RATE}%로 10년 동안 원금과 이자까지 다시 맡기면(세전, 해마다 복리) {label}은 약{" "}
+        <strong>{approxWon(rollover.balance)}</strong>이 됩니다. 실제로는 만기마다 이자에서 세금을 떼므로 이보다 조금 적습니다.
+      </p>
+      {scenarios.length ? (
+        <ul>
+          {scenarios.map((s) => {
+            const x = calcCompound({ principal: P, monthly: 0, ratePct: s.ratePct, years: s.years });
+            return (
+              <li key={s.slug}>
+                연 {s.ratePct}% 수익을 가정해 {s.years}년 동안 월복리로 굴리면 약 <strong>{approxWon(x.balance)}</strong>으로 원금의{" "}
+                {formatNumber(x.balance / P, 2)}배가 됩니다.{" "}
+                <Link href={`/compound-interest/${s.slug}/`}>
+                  {s.label} 연 {s.ratePct}% 복리 계산 보기
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+      ) : (
+        <p>
+          기간과 수익률을 바꿔 보려면 <Link href="/compound-interest/">복리 계산기</Link>를 이용하세요.
+        </p>
+      )}
+      {scenarios.length ? (
+        <p className="note">
+          예금은 약정 금리가 확정되지만, 위 목록의 수익률은 투자 상품을 가정한 값입니다. {INVEST_DISCLAIMER}
+        </p>
+      ) : null}
 
       <h2>다른 금액 예금 이자 보기</h2>
       <p>

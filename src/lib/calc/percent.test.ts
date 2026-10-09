@@ -20,9 +20,11 @@ import {
   roundToDigits,
   sanitizeDecimalInput,
   tidy,
+  toggleSignText,
   topicParticle,
   valueBeforeChange,
 } from "./percent";
+import { parseNumber } from "@/lib/format";
 
 // All vectors below are plain arithmetic, checked by hand.
 
@@ -230,5 +232,24 @@ describe("sanitizeDecimalInput", () => {
     expect(sanitizeDecimalInput("-50", 2)).toBe("50");
     expect(sanitizeDecimalInput("-50", 2, true)).toBe("-50");
     expect(sanitizeDecimalInput("-", 2, true)).toBe("-");
+  });
+});
+
+describe("toggleSignText (± button for keypads without a minus key)", () => {
+  it("adds a leading minus to a positive or empty box", () => {
+    expect(toggleSignText("1,234.5")).toBe("-1,234.5");
+    expect(toggleSignText("3.")).toBe("-3.");
+    expect(toggleSignText("")).toBe("-");
+  });
+  it("removes the minus (ASCII or U+2212) from a negative box", () => {
+    expect(toggleSignText("-1,234.5")).toBe("1,234.5");
+    expect(toggleSignText("−50")).toBe("50");
+    expect(toggleSignText("-")).toBe("");
+  });
+  it("round-trips through the sanitizer used by the field", () => {
+    const flipped = sanitizeDecimalInput(toggleSignText("25,000"), 4, true);
+    expect(flipped).toBe("-25,000");
+    expect(parseNumber(flipped)).toBe(-25000);
+    expect(sanitizeDecimalInput(toggleSignText(flipped), 4, true)).toBe("25,000");
   });
 });

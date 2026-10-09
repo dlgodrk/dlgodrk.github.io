@@ -11,6 +11,11 @@ import {
 } from "@/components/Statement";
 import {
   calculateLeave,
+  DATE_MAX,
+  DATE_MAX_YEAR,
+  DATE_MIN,
+  DATE_MIN_YEAR,
+  isDateInRange,
   MONTHLY_LEAVE_MAX,
   type LeaveEvent,
   type LeaveResult,
@@ -67,8 +72,10 @@ export function AnnualLeaveCalculator() {
   const small = s.w === "4";
   const hire = parseYMD(s.h);
   const asOf = s.a ? parseYMD(s.a) : today;
+  // A half-typed year ("0202-03-04" while typing 2024) is a valid YMD but not a real 입사일.
+  const outOfRange = hire && asOf ? (!isDateInRange(hire) ? "입사일" : !isDateInRange(asOf) ? "기준일" : null) : null;
   const r =
-    hire && asOf
+    hire && asOf && !outOfRange
       ? calculateLeave({ hire, asOf, basis, attended80: s.p, perfectMonths: s.g })
       : null;
   // 출근율 입력은 결과를 바꾸는 기간에만 보여 준다 (입사 1년 미만은 개근 가정).
@@ -88,12 +95,16 @@ export function AnnualLeaveCalculator() {
             label="입사일"
             value={s.h}
             onChange={(h) => set({ h })}
+            min={DATE_MIN}
+            max={DATE_MAX}
             hint="근로계약서에 적힌 첫 근무일을 넣어 주세요."
           />
           <DateField
             label="기준일"
             value={s.a || formatYMD(today)}
             onChange={(a) => set({ a })}
+            min={DATE_MIN}
+            max={DATE_MAX}
             aside={
               s.a ? (
                 <button type="button" className="text-link hover:underline" onClick={() => set({ a: "" })}>
@@ -157,6 +168,10 @@ export function AnnualLeaveCalculator() {
       result={
         !hire || !asOf ? (
           <CalcNotice>입사일과 기준일을 모두 넣으면 연차를 바로 계산해 드려요.</CalcNotice>
+        ) : outOfRange ? (
+          <CalcNotice>
+            {outOfRange}은 {DATE_MIN_YEAR}년부터 {DATE_MAX_YEAR}년 사이 날짜로 넣어 주세요.
+          </CalcNotice>
         ) : !r ? (
           <CalcNotice>기준일이 입사일보다 빠르면 계산할 수 없어요. 날짜를 다시 확인해 주세요.</CalcNotice>
         ) : small ? (

@@ -12,7 +12,7 @@ import {
   monthlyHoursExact,
   monthlyPayHours,
   nearestSalaryManwon,
-  netMonthly2026,
+  netMonthly,
   WEEKLY_HOURS_TABLE,
   yearOverYear,
 } from "./minimum-wage";
@@ -276,14 +276,65 @@ describe("minimum-wage: 2026 → 2027", () => {
   });
 });
 
-describe("minimum-wage: helpers", () => {
-  it("net pay uses the verified 2026 engines", () => {
-    const n = netMonthly2026(2_156_880);
+describe("minimum-wage: net pay (같은 엔진 → 시급·주휴수당 계산기와 같은 실수령액)", () => {
+  it("2026년 10월분: verified 2026 engines", () => {
+    const n = netMonthly(2_156_880, 40, 2026);
     // 국민연금 102,410 / 건강 77,530 / 장기요양 10,180 / 고용 19,410 (2026 요율, src/lib/rates/insurance.ts)
-    expect(n.insurance.total).toBe(209_530);
-    expect(n.net).toBe(2_156_880 - n.insurance.total - n.tax.total);
-    expect(n.net).toBeGreaterThan(1_800_000);
+    expect(n.payMonth).toBe("2026-10");
+    expect(n.insuranceTotal).toBe(209_530);
+    expect(n.incomeTax).toBe(24_340);
+    expect(n.localTax).toBe(2_430);
+    expect(n.net).toBe(1_920_580);
+    expect(n.net).toBe(2_156_880 - n.insuranceTotal - n.taxTotal);
   });
+  it("2026 주 40시간 최저임금 net is the same in 10월분 and 11월분 (page text relies on this)", () => {
+    expect(netMonthly(2_156_880, 40, 2026, "2026-11").net).toBe(netMonthly(2_156_880, 40, 2026, "2026-10").net);
+  });
+  it("2027 예상: 국민연금 5.0%, 건강 7.19% 동결, 장기요양·고용·간이세액표 2026 값 가정", () => {
+    const n = netMonthly(2_236_300, 40, 2027);
+    expect(n.pension).toBe(111_800); // floor10(2,236,000 × 5.0%)
+    expect(n.health).toBe(80_390);
+    expect(n.longTermCare).toBe(10_560);
+    expect(n.employment).toBe(20_120);
+    expect(n.taxTotal).toBe(29_600);
+    expect(n.net).toBe(1_983_830);
+    // the month is ignored for 2027 (one fixed rule set)
+    expect(netMonthly(2_236_300, 40, 2027, "2026-10").net).toBe(1_983_830);
+  });
+  it("2027 net equals the 시급·주휴수당 계산기 and its landing pages for the same case", () => {
+    for (const h of [10, 15, 20, 25, 30, 35, 40]) {
+      const m = calcMinimumWage({ year: 2027, weeklyHours: h, dailyHours: 8 });
+      const s = scheduleForHours(h);
+      const c = calcHourly({ wage: m.hourly, dailyHours: s.daily, days: s.days, deduction: "insured", rateYear: 2027 });
+      const n = netMonthly(m.monthly, h, 2027);
+      expect(n.net).toBe(payForWeeklyHours(h, m.hourly, 2027).netInsured);
+      expect(n.net).toBe(c.monthlyNet);
+    }
+    // 수습 90% too: 9,630 × 209 = 2,012,670
+    const p = calcMinimumWage({ year: 2027, weeklyHours: 40, dailyHours: 8, probation: true });
+    expect(netMonthly(p.monthly, 40, 2027).net).toBe(payForWeeklyHours(40, p.hourly, 2027).netInsured);
+  });
+  it("2026 net equals the 시급·주휴수당 계산기 for the same month", () => {
+    for (const month of ["2026-10", "2026-11"]) {
+      for (const h of [15, 20, 30, 40]) {
+        const m = calcMinimumWage({ year: 2026, weeklyHours: h, dailyHours: 8 });
+        const s = scheduleForHours(h);
+        const c = calcHourly({ wage: m.hourly, dailyHours: s.daily, days: s.days, deduction: "insured", payMonth: month });
+        expect(netMonthly(m.monthly, h, 2026, month).net).toBe(c.monthlyNet);
+      }
+    }
+  });
+  it("초단시간 (주 15시간 미만): 고용보험만", () => {
+    const m = calcMinimumWage({ year: 2026, weeklyHours: 10, dailyHours: 5 });
+    const n = netMonthly(m.monthly, 10, 2026);
+    expect(n.shortTime).toBe(true);
+    expect(n.pension + n.health + n.longTermCare).toBe(0);
+    expect(n.employment).toBe(Math.floor((m.monthly * 9) / 10_000) * 10); // 448,429 × 0.9% → 4,030
+    expect(n.employment).toBe(4_030);
+  });
+});
+
+describe("minimum-wage: helpers", () => {
   it("산입범위 schedule ends at 0% from 2024", () => {
     const last = INCLUSION_SCHEDULE[INCLUSION_SCHEDULE.length - 1];
     expect(last.bonusExcludedPct).toBe(0);

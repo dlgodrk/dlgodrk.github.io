@@ -2,13 +2,15 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ToolShell } from "@/components/ToolShell";
 import { pageMetadata, type FaqItem } from "@/lib/seo";
-import { formatWon, koreanWon } from "@/lib/format";
+import { formatNumber, formatWon, koreanWon } from "@/lib/format";
 import {
   ACQ_PAGE_MANWON,
   computeAcquisitionTax,
   EOK,
   FIRST_HOME_DEADLINE,
   MAN,
+  NATIONAL_HOUSING_M2,
+  NATIONAL_HOUSING_M2_RURAL,
   priceLabel,
   rateLabel,
   REGULATED_AS_OF,
@@ -17,10 +19,14 @@ import {
   standardRateUnits,
   totalFor,
 } from "@/lib/calc/acquisition-tax";
+import { maxFeeFor } from "@/lib/calc/brokerage-fee";
+import { m2ToPyeong, PYEONG_PAGE_M2 } from "@/lib/calc/pyeong";
 import { AcquisitionTaxCalculator } from "./AcquisitionTaxCalculator";
 import { BASIS, LAW_LINKS, SOURCE_LINKS } from "./sources";
 
 const ONE = { houses: 1, regulated: false, over85: false } as const;
+/** /pyeong/85/ while it exists; otherwise the pyeong main page. */
+const PYEONG_85_HREF = PYEONG_PAGE_M2.includes(NATIONAL_HOUSING_M2) ? `/pyeong/${NATIONAL_HOUSING_M2}/` : "/pyeong/";
 const ex5 = totalFor(5 * EOK, ONE);
 const ex5Large = totalFor(5 * EOK, { ...ONE, over85: true });
 const ex5Heavy = totalFor(5 * EOK, { houses: 2, regulated: true, over85: false });
@@ -85,7 +91,7 @@ export default function AcquisitionTaxPage() {
     <ToolShell
       slug="acquisition-tax"
       h1="취득세 계산기 (주택 매매)"
-      lead="매매가와 주택 수, 지역, 전용면적을 넣으면 취득세와 지방교육세, 농어촌특별세를 합친 금액을 바로 계산해 드려요. 다주택 중과와 생애최초 감면도 반영해요."
+      lead={`5억 아파트를 1주택으로 사면 취득세와 지방교육세를 합쳐 ${koreanWon(ex5)}(1.1%), 조정대상지역 2주택이면 8% 중과로 ${koreanWon(ex5Heavy)}입니다. 매매가와 주택 수, 지역, 전용면적을 넣으면 농어촌특별세와 생애최초 감면까지 반영해 바로 계산해 드려요.`}
       basis={BASIS}
       calculator={<AcquisitionTaxCalculator />}
       faq={FAQ}
@@ -93,7 +99,12 @@ export default function AcquisitionTaxPage() {
     >
       <h2>취득세 계산 방법</h2>
       <p>
-        주택을 사면 취득세와 함께 지방교육세를 내고, 전용면적이 85㎡를 넘으면 농어촌특별세도 냅니다. 세 가지 모두
+        주택을 사면 취득세와 함께 지방교육세를 내고, 전용면적이 국민주택규모인{" "}
+        <Link href={PYEONG_85_HREF}>
+          {NATIONAL_HOUSING_M2}㎡(약 {formatNumber(m2ToPyeong(NATIONAL_HOUSING_M2), 1)}평)
+        </Link>
+        를 넘으면 농어촌특별세도 냅니다. 수도권 밖에서 도시지역이 아닌 읍·면 지역은 국민주택규모가{" "}
+        {NATIONAL_HOUSING_M2_RURAL}㎡라 그 이하이면 농어촌특별세가 없습니다(주택법 제2조 제6호). 세 가지 모두
         취득가액(실제 거래가격)에 각각의 세율을 곱해 구합니다.
       </p>
       <p className="formula">총 납부세액 = 취득가액 × (취득세율 + 지방교육세율 + 농어촌특별세율)</p>
@@ -242,7 +253,9 @@ export default function AcquisitionTaxPage() {
       </div>
       <p>
         지방교육세는 1~3% 구간에서 취득세율의 10%이고, 중과될 때는 0.4%로 고정됩니다(지방세법 제151조). 농어촌특별세는
-        전용면적 85㎡ 이하 주택에는 붙지 않습니다. 세 세금은 취득세를 신고할 때 한꺼번에 냅니다.
+        전용 {NATIONAL_HOUSING_M2}㎡(수도권 밖 도시지역이 아닌 읍·면은 {NATIONAL_HOUSING_M2_RURAL}㎡) 이하 주택에는
+        붙지 않고, 이런 주택은 생애최초 감면을 받아도 감면분 농어촌특별세가 없습니다(농어촌특별세법 제4조 제9호·제11호).
+        표의 ‘85㎡ 이하·초과’는 이 기준으로 읽으면 됩니다. 세 세금은 취득세를 신고할 때 한꺼번에 냅니다.
       </p>
 
       <h2>생애최초 주택 구입 감면</h2>
@@ -392,6 +405,12 @@ export default function AcquisitionTaxPage() {
         전에 소유권 이전등기를 했다면 등기일입니다. 보통 법무사가 등기와 함께 대신 신고하지만, 직접 하려면 위택스에서
         신고서를 내고 납부할 수 있습니다. 생애최초 감면은 신고할 때 감면 신청서를 함께 내야 적용됩니다. 기한을 넘기면
         무신고·납부지연 가산세가 붙습니다.
+      </p>
+      <p>
+        잔금일에는 취득세 말고도 중개보수를 함께 정산하는 경우가 많습니다. 5억원 아파트 매매라면 매수인이 내는 복비
+        상한이 {koreanWon(maxFeeFor("house", "sale", 5 * EOK))}(부가세 별도)이니{" "}
+        <Link href="/brokerage-fee/">복비 계산기</Link>로 미리 확인해 두세요. 주택담보대출을 받는다면 매달 갚을 원리금은{" "}
+        <Link href="/loan/">대출 이자 계산기</Link>로 계산해 볼 수 있습니다.
       </p>
 
       <h2>근거 법령</h2>

@@ -63,7 +63,7 @@ export default function BmiPage() {
     <ToolShell
       slug="bmi"
       h1="BMI 계산기 (비만도·표준체중)"
-      lead="키와 몸무게를 넣으면 BMI(체질량지수)와 대한비만학회 기준 비만 단계, 키에 맞는 정상 체중 범위를 바로 알려 드려요."
+      lead="대한비만학회 기준 성인 BMI 정상 범위는 18.5~22.9이고, 23 이상은 비만 전단계, 25 이상은 비만이에요. 키와 몸무게를 넣으면 BMI(체질량지수)와 비만 단계, 키에 맞는 정상 체중 범위를 바로 알려 드려요."
       basis={BASIS}
       calculator={<BmiCalculator />}
       faq={FAQ}

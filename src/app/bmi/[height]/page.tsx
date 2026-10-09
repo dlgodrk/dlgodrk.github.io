@@ -8,6 +8,7 @@ import {
   BMI_CLASSES,
   BMI_PAGE_HEIGHTS,
   bmiEquation,
+  bmiPerKg,
   calcBmi,
   classifyBmi,
   classWeightLabel,
@@ -16,8 +17,11 @@ import {
   formatBmi,
   formatKg,
   getBmiClass,
+  heightBand,
   heightM2,
+  KOREAN_AVG_HEIGHT_CM,
   neighborHeights,
+  normalRangeWidth,
   normalWeightRange,
   standardWeight,
   weightAtBmi,
@@ -59,12 +63,43 @@ function figures(h: number) {
   };
 }
 
+type Figures = ReturnType<typeof figures>;
+
+/** "2.5cm 작고" / "10.4cm 큽니다" (`end` = sentence end). Averages have a decimal, so never equal. */
+function compareHeight(h: number, avg: number, end: boolean): string {
+  const diff = h - avg;
+  const cm = `${formatNumber(Math.abs(diff), 1)}cm`;
+  if (diff > 0) return `${cm} ${end ? "큽니다" : "크고"}`;
+  return `${cm} ${end ? "작습니다" : "작고"}`;
+}
+
+/**
+ * The page's third paragraph, written per height band so pages differ in substance, not only in numbers:
+ * how fast BMI moves, which 표준체중 people usually compare with, and the BMI caveat that matters most
+ * at that height (both caveats are hedged: the height² scaling critique is a known limitation, not a guideline).
+ */
+function bandParagraph(h: number, x: Figures): string {
+  const per5 = formatNumber(bmiPerKg(h, 5), 1);
+  const width = formatKg(normalRangeWidth(h));
+  switch (heightBand(h)) {
+    case "short":
+      return `키가 작을수록 몸무게 변화가 BMI에 크게 반영됩니다. 키 ${h}cm에서는 5kg 차이가 BMI 약 ${per5}에 해당하고(170cm는 약 ${formatNumber(bmiPerKg(170, 5), 1)}), 정상 범위의 폭도 ${width}kg으로 좁아 몇 kg만 달라져도 단계가 바뀔 수 있습니다. 또 BMI는 몸무게를 키의 제곱으로 나누는 단순한 지표라 키가 작은 사람은 같은 체형이어도 BMI가 조금 낮게 나온다는 지적이 있으니, 정상으로 나와도 허리둘레(여성 85cm, 남성 90cm 이상이면 복부비만)를 함께 확인하는 것이 좋습니다.`;
+    case "female":
+      return `이 키는 성인 여성 평균에 가까운 구간이라 여성 표준체중 ${x.f}kg을 기준으로 보는 경우가 많습니다. 정상 범위의 폭은 ${width}kg이고, 몸무게가 5kg 달라지면 BMI는 약 ${per5} 달라집니다. 같은 BMI라도 여성은 남성보다 체지방 비율이 높은 편이라, 체중이 정상 범위여도 허리둘레가 85cm 이상이면 복부비만으로 봅니다.`;
+    case "male":
+      return `이 키는 성인 남성 평균에 가까운 구간이라 남성 표준체중 ${x.m}kg이 흔히 기준으로 쓰입니다. 정상 범위의 폭은 ${width}kg이고, 5kg 차이는 BMI 약 ${per5}입니다. 근력 운동으로 근육량이 많으면 체지방이 적어도 BMI가 비만 전단계(이 키에서 ${x.preMin}kg 이상)로 나올 수 있으니 허리둘레(남성 90cm, 여성 85cm)와 체지방률을 함께 보는 것이 좋습니다.`;
+    case "tall":
+      return `성인 남성 평균보다 ${formatNumber(h - KOREAN_AVG_HEIGHT_CM.m, 1)}cm 큰 키라 정상 범위의 폭이 ${width}kg으로 넓고, 5kg 차이도 BMI 약 ${per5}에 그칩니다. 다만 BMI는 몸무게를 키의 제곱으로 나누기 때문에 키가 큰 사람은 같은 체형이어도 BMI가 조금 높게 나온다는 지적이 있습니다. 비만 전단계(${x.preMin}kg 이상)로 나오더라도 허리둘레와 체지방률을 함께 확인해 판단하는 것이 좋습니다.`;
+  }
+}
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const h = parse((await params).height);
   if (h === null) return {};
   const x = figures(h);
   return pageMetadata({
-    title: `키 ${h}cm 표준체중·정상 체중 범위 (BMI 기준)`,
+    // ≤ 45 chars for every page height (all weights here are 2-digit with one decimal).
+    title: `키 ${h}cm 표준체중 남 ${x.m}·여 ${x.f}kg, 정상 ${x.normal}`,
     description: `키 ${h}cm의 표준체중은 남자 ${x.m}kg, 여자 ${x.f}kg입니다. 대한비만학회 기준 정상 체중(BMI 18.5~22.9)은 ${x.normal}이고, ${x.ob1Min}kg부터 비만(BMI 25 이상)입니다. 몸무게별 BMI 표로 확인하세요.`,
     path: `/bmi/${h}/`,
     keywords: [`키 ${h} 표준체중`, `${h}cm 정상체중`, `${h}cm 몸무게 BMI`, `키 ${h} 비만 기준`, "BMI 계산기"],
@@ -123,7 +158,7 @@ export default async function BmiHeightPage({ params }: Props) {
       slug="bmi"
       path={`/bmi/${h}/`}
       extraCrumbs={[{ name: `키 ${h}cm`, path: `/bmi/${h}/` }]}
-      h1={`키 ${h}cm 표준체중과 정상 체중 범위`}
+      h1={`키 ${h}cm 표준체중: 남 ${x.m}kg·여 ${x.f}kg (정상 ${x.normal})`}
       lead={`키 ${h}cm의 정상 체중 범위는 ${x.normal}(BMI 18.5~22.9)입니다. 표준체중은 남자 ${x.m}kg, 여자 ${x.f}kg입니다.`}
       basis={BASIS}
       calculator={<BmiCalculator initialHeight={h} initialWeight={defaultWeightFor(h)} />}
@@ -138,15 +173,18 @@ export default async function BmiHeightPage({ params }: Props) {
         표준체중: 남 {m2} × 22 = {x.m}kg &nbsp;|&nbsp; 여 {m2} × 21 = {x.f}kg
       </p>
       <p>
-        키 {h}cm에서 BMI가 정상(18.5~22.9)인 몸무게를 0.1kg 단위로 정리하면 <strong>{x.normal}</strong>입니다. 이 키에서는
-        몸무게가 1kg 늘 때마다 BMI가 약 {perKg}씩 오릅니다. 대한비만학회 기준으로 {x.preMin}kg부터 비만 전단계(BMI 23),{" "}
-        {x.ob1Min}kg부터 1단계 비만(BMI 25), {x.ob2Min}kg부터 2단계 비만(BMI 30), {x.ob3Min}kg부터 3단계 비만(BMI 35)이고,{" "}
-        {x.underMax}kg 이하는 저체중입니다. WHO 국제 기준으로는 {x.ob1Min}kg부터 과체중, {x.ob2Min}kg부터 비만입니다.
+        키 {h}cm에서 BMI가 정상(18.5~22.9)인 몸무게를 0.1kg 단위로 정리하면 <strong>{x.normal}</strong>입니다. 대한비만학회
+        기준으로 {x.preMin}kg부터 비만 전단계(BMI 23), {x.ob1Min}kg부터 1단계 비만(BMI 25), {x.ob2Min}kg부터 2단계
+        비만(BMI 30), {x.ob3Min}kg부터 3단계 비만(BMI 35)이고, {x.underMax}kg 이하는 저체중입니다. WHO 국제 기준으로는{" "}
+        {x.ob1Min}kg부터 과체중, {x.ob2Min}kg부터 비만입니다.
       </p>
       <p>
-        표준체중(남 {x.m}kg, 여 {x.f}kg)은 BMI 21~22에 해당해 정상 범위 안쪽에 있습니다. 다만 표준체중은 참고용 어림값이고,
-        체중이 정상이어도 허리둘레가 남성 90cm, 여성 85cm 이상이면 복부비만으로 봅니다.
+        키 {h}cm는 국가기술표준원 제8차 한국인 인체치수조사(20~69세)의 평균 키인 남성 {KOREAN_AVG_HEIGHT_CM.m}cm보다{" "}
+        {compareHeight(h, KOREAN_AVG_HEIGHT_CM.m, false)}, 여성 {KOREAN_AVG_HEIGHT_CM.f}cm보다{" "}
+        {compareHeight(h, KOREAN_AVG_HEIGHT_CM.f, true)}. 표준체중(남 {x.m}kg, 여 {x.f}kg)은 키(m)²에 22와 21을 곱한
+        어림값이라 정상 범위 안쪽에 있고, 이 키에서는 몸무게 1kg이 BMI 약 {perKg}에 해당합니다.
       </p>
+      <p>{bandParagraph(h, x)}</p>
 
       <h2>키 {h}cm 비만 단계별 체중</h2>
       <div className="table-wrap">

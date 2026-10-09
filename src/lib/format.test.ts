@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { floorTo, formatNumber, formatWon, koreanWon, manwonLabel, parseNumber } from "./format";
+import { floorTo, formatNumber, formatWon, koreanWon, longestRunEm, manwonLabel, parseNumber } from "./format";
 
 describe("format", () => {
   it("formats numbers with commas", () => {
@@ -21,5 +21,16 @@ describe("format", () => {
   });
   it("truncates", () => {
     expect(floorTo(12345, 10)).toBe(12340);
+  });
+  it("estimates the widest unbreakable run of a headline figure in em", () => {
+    // 11 digits × 0.62 + 3 commas × 0.3 + 원 × 1
+    expect(longestRunEm("14,512,345,678원")).toBe(8.72);
+    // Only the longest whitespace-separated run counts: "2,935,813원"
+    expect(longestRunEm("월 2,935,813원")).toBe(5.94);
+    // Hangul is about 1em per syllable
+    expect(longestRunEm("2028년 2월 29일")).toBe(3.48);
+    expect(longestRunEm("")).toBe(0);
+    // 1,000조원 cap of the compound-interest tool, written out in won
+    expect(longestRunEm(formatWon(1e15))).toBeCloseTo(16 * 0.62 + 5 * 0.3 + 1, 5);
   });
 });

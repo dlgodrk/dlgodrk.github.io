@@ -111,7 +111,7 @@ export default function DepositPage() {
     <ToolShell
       slug="deposit"
       h1="예금 이자 계산기 (세후 이자·만기 수령액)"
-      lead="예치 금액과 기간, 금리를 넣으면 이자소득세를 뗀 세후 이자와 만기에 받는 돈을 바로 계산해 드려요."
+      lead={`1천만원을 연 3% 정기예금에 1년 맡기면 세전 이자 ${formatWon(ex.grossInterest)}에서 15.4%를 떼고 세후 ${formatWon(ex.netInterest)}을 받습니다. 예치 금액과 기간, 금리를 넣으면 세후 이자와 만기에 받는 돈을 바로 계산해 드려요.`}
       basis={`${RULE_YEAR}년 세법 기준 · 일반과세 15.4% · 예금자보호 1억원 · ${checkedLabel()} 확인`}
       calculator={<DepositCalculator />}
       faq={FAQ}

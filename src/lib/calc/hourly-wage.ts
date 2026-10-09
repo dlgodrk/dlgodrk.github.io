@@ -20,15 +20,21 @@
  *   (지방세법 제103조의13), each 10원 미만 절사 (국고금관리법 제47조). Since 2024-07-01 지급분
  *   인적용역 사업소득 is excluded from the 1,000원 소액부징수 (소득세법 제86조 제1호, 법률 제19933호).
  * - 4대보험+소득세: shared engine (employeeInsurance, monthlyWithholding; 공제대상가족 1명).
- *   2027 figures (rateYear 2027) apply the legislated 국민연금 rise to 10% (근로자 5.0%; 국민연금법
- *   개정 법률 제20903호, 2026년부터 매년 0.5%p 인상) and keep every other 2026 rate and the
- *   2026 간이세액표, because those 2027 values are not fixed yet.
+ *   2026 figures follow a pay month: static pages use HOURLY_PAY_MONTH (2026년 10월분); client calculators
+ *   use the visitor's month via liveRateRules() (as the salary tool does). From 2026년 11월분 장기요양 =
+ *   건강보험료 × 0.1314 instead of × 0.9448/7.19, so the same pay can differ by 10원 between months.
+ *   2027 figures (rateYear 2027) are an ESTIMATE ('예상'), with one meaning in every tool (status 2026-10-09):
+ *   · 국민연금 근로자 5.0% (전체 10%) — 법정 인상 (국민연금법 개정 법률 제20903호, 2026년부터 매년 0.5%p).
+ *   · 건강보험료율 7.19% 동결 — 2026-09-08 건강보험정책심의위원회 의결, 고시 전 (= the 2026 value).
+ *   · 장기요양·고용보험 요율 (고용 1.0% 인상안은 정부안) and the 간이세액표 are not decided → 2026 values
+ *     assumed, on the latest known 2026 rules (pay month 2026-12, see RATE_PAY_MONTH).
+ *   minimum-wage.ts reuses insuredDeductions(), so both tools show the same 2027 net for the same case.
  *   주 15시간(월 60시간) 미만 초단시간 근로자는 국민연금·건강보험 직장가입 제외. 고용보험은
  *   3개월 이상 계속 근로하면 적용 (고용보험법 시행령 제3조, 2026년 현행) — assumed here.
  *
  * Pure functions only. No React, no Date.
  */
-import { employeeInsurance } from "@/lib/rates/insurance";
+import { employeeInsurance, rulePayMonth } from "@/lib/rates/insurance";
 import { MINIMUM_WAGE } from "@/lib/rates/labor";
 import { monthlyWithholding } from "@/lib/rates/withholding";
 
@@ -51,8 +57,17 @@ export const MONTHLY_HOUR_UNITS = 8_400;
 export const OFFICIAL_MONTHLY_HOURS_40H = 209;
 /** 수습 감액 한도 (최저임금법 제5조②, 시행령 제3조): 최저임금의 90%. */
 export const PROBATION_RATIO = 0.9;
-/** Pay month whose 4대보험·간이세액 rules are applied (2026 요율). */
+/**
+ * Fixed pay month of the 2026 4대보험·간이세액 rules on STATIC pages (text names it "2026년 10월분").
+ * Client calculators apply the visitor's own month instead (liveRateRules).
+ */
 export const HOURLY_PAY_MONTH = "2026-10";
+
+/** "2026-10" → "2026년 10월" */
+export function ruleMonthLabel(payMonth: string): string {
+  const [y, m] = payMonth.split("-");
+  return `${Number(y)}년 ${Number(m)}월`;
+}
 
 export type DeductionMode = "none" | "freelance" | "insured";
 
@@ -195,14 +210,48 @@ export type RateYear = 2026 | 2027;
 export const PENSION_EMPLOYEE_BP: Record<RateYear, number> = { 2026: 475, 2027: 500 };
 
 /**
- * Pay month handed to the shared 2026 engine for each rate year. 2027 uses the latest known rules
- * (2026-12: 국민연금 기준소득월액 410,000~6,590,000원 until 2027-06, 장기요양 0.1314).
+ * Pay month handed to the shared 2026 engine for each rate year. 2026 defaults to the static pages'
+ * month; 2027 always uses the latest known rules (2026-12: 국민연금 기준소득월액 410,000~6,590,000원
+ * until 2027-06, 장기요양 = 건강보험료 × 0.1314).
  */
 export const RATE_PAY_MONTH: Record<RateYear, string> = { 2026: HOURLY_PAY_MONTH, 2027: "2026-12" };
 
+/** 국민연금 근로자 요율 label: 2026 "4.75%", 2027 "5.0%". */
+export function pensionRateLabel(rateYear: RateYear): string {
+  return rateYear === 2027 ? "5.0%" : "4.75%";
+}
+
+/**
+ * 2027 예상 basis in one sentence (합니다체, for page prose). Same meaning as the header comment above.
+ * RATE_2027_NOTE_UI is the 해요체 version for calculator footnotes.
+ */
+export const RATE_2027_NOTE =
+  "2027년 금액은 예상치로, 법으로 정해진 국민연금 인상(근로자 4.75% → 5.0%)과 7.19%로 동결된 건강보험료율(2026년 9월 8일 건강보험정책심의위원회 의결, 고시 전)을 반영하고, 아직 정해지지 않은 장기요양·고용보험 요율과 간이세액표는 2026년 값으로 가정했습니다.";
+export const RATE_2027_NOTE_UI =
+  "2027년 예상은 국민연금 5.0%(법정 인상)와 7.19%로 동결된 건강보험료율(2026년 9월 8일 건정심 의결, 고시 전)을 넣고, 아직 정해지지 않은 장기요양·고용보험 요율과 간이세액표는 2026년 값으로 가정했어요.";
+
+/**
+ * 4대보험 rules a CLIENT calculator applies for the visitor's month (KST), like the salary tool:
+ * during 2026 that month's 2026 rules (rulePayMonth), from 2027 the 2027 예상. Before 2026 → 2026-01.
+ */
+export function liveRateRules(y: number, m: number): { rateYear: RateYear; payMonth: string } {
+  if (y >= 2027) return { rateYear: 2027, payMonth: RATE_PAY_MONTH[2027] };
+  return { rateYear: 2026, payMonth: rulePayMonth(y, m) };
+}
+
+/**
+ * Rate year for a 시급 row in a static table: the 2027 최저시급 (10,700원) row uses the 2027 예상,
+ * every other wage the 2026 rules — so that row matches the 2026·2027 table's 2027 column.
+ */
+export function rateYearForWage(wage: number): RateYear {
+  return wage === MIN_WAGE_2027 ? 2027 : 2026;
+}
+
 /**
  * 4대보험 근로자분 + 간이세액 (공제대상가족 본인 1명, 100%) on the monthly pay.
- * rateYear 2027 swaps in the legislated 5.0% 국민연금 rate; other rates stay at 2026 values.
+ * - rateYear 2026: the rules of `payMonth` (default 2026-10, the static pages' month).
+ * - rateYear 2027 (예상): 국민연금 5.0%, everything else at the 2026-12 rules, whatever `payMonth` is
+ *   passed — one fixed rule set, so every page and calculator shows the same 2027 figure.
  */
 export function insuredDeductions(
   gross: number,
@@ -210,7 +259,7 @@ export function insuredDeductions(
   payMonth?: string,
   rateYear: RateYear = 2026,
 ): InsuredDeductions {
-  const month = payMonth ?? RATE_PAY_MONTH[rateYear];
+  const month = rateYear === 2027 ? RATE_PAY_MONTH[2027] : (payMonth ?? RATE_PAY_MONTH[2026]);
   const shortTime = contractualWeekly < JUHYU_MIN_WEEKLY_HOURS - EPS;
   const ins = employeeInsurance(gross, month, { pensionExempt: shortTime });
   // 2026: the verified engine's figure. 2027: same 기준소득월액, floor10(base × 5.0%) =
@@ -246,7 +295,10 @@ export type HourlyInput = {
   /** 소정근로일 개근 여부 (default true) */
   perfectAttendance?: boolean;
   deduction?: DeductionMode;
+  /** 2026 rules of this pay month (default 2026-10); ignored for rateYear 2027 */
   payMonth?: string;
+  /** 4대보험 rate year for "insured" (default 2026; 2027 = 예상, see insuredDeductions) */
+  rateYear?: RateYear;
 };
 
 export type HourlyResult = {
@@ -278,6 +330,8 @@ export type HourlyResult = {
   /** 참고: 주급 합계 × 365/7/12 (평균 4.345주) */
   monthlyByWeeks: number;
   deduction: DeductionMode;
+  /** rate year the "insured" deductions used */
+  rateYear: RateYear;
   freelance: FreelanceTax | null;
   insured: InsuredDeductions | null;
   deductionTotal: number;
@@ -293,6 +347,7 @@ export function calcHourly(input: HourlyInput): HourlyResult {
   const dailyHours = Math.min(24, Math.max(0, round1(input.dailyHours)));
   const perfect = input.perfectAttendance ?? true;
   const deduction = input.deduction ?? "none";
+  const rateYear: RateYear = input.rateYear === 2027 ? 2027 : 2026;
 
   const weeklyWork = weeklyWorkHours(dailyHours, days);
   const overtime = overtimeHours(dailyHours, days);
@@ -307,7 +362,8 @@ export function calcHourly(input: HourlyInput): HourlyResult {
   const monthlyGross = monthlyPay(wage, weeklyWork, jh);
 
   const freelance = deduction === "freelance" ? freelanceTax(monthlyGross) : null;
-  const insured = deduction === "insured" ? insuredDeductions(monthlyGross, contractualWeekly, input.payMonth) : null;
+  const insured =
+    deduction === "insured" ? insuredDeductions(monthlyGross, contractualWeekly, input.payMonth, rateYear) : null;
   const deductionTotal = freelance?.total ?? insured?.total ?? 0;
 
   const otWeekly = won(overtime * wage * 0.5);
@@ -331,6 +387,7 @@ export function calcHourly(input: HourlyInput): HourlyResult {
     // 주급 합계 × 365/84 and 연장 × 시급 × 0.5 × 365/84, 원 단위 반올림 in integers (no float noise).
     monthlyByWeeks: Math.floor((weeklyTotal * 365 + 42) / 84),
     deduction,
+    rateYear,
     freelance,
     insured,
     deductionTotal,
@@ -342,9 +399,10 @@ export function calcHourly(input: HourlyInput): HourlyResult {
 
 /**
  * Pay summary for a weekly 소정근로시간 (no overtime) — used by tables and landing pages.
- * `rateYear` picks the 4대보험 rates for netInsured (2027: 국민연금 5.0%, see insuredDeductions).
+ * `rateYear` picks the 4대보험 rates for netInsured (2027 예상: 국민연금 5.0%, see insuredDeductions);
+ * `payMonth` the month of the 2026 rules (default 2026-10, the static pages' month).
  */
-export function payForWeeklyHours(weeklyHours: number, wage: number, rateYear: RateYear = 2026) {
+export function payForWeeklyHours(weeklyHours: number, wage: number, rateYear: RateYear = 2026, payMonth?: string) {
   const jh = juhyuHours(weeklyHours);
   const paid = round2(weeklyHours + jh);
   const mh = monthlyHours(weeklyHours, jh);
@@ -364,8 +422,18 @@ export function payForWeeklyHours(weeklyHours: number, wage: number, rateYear: R
     monthly209: uses209(jh),
     monthlyGross,
     netFreelance: monthlyGross - freelanceTax(monthlyGross).total,
-    netInsured: monthlyGross - insuredDeductions(monthlyGross, weeklyHours, undefined, rateYear).total,
+    netInsured: monthlyGross - insuredDeductions(monthlyGross, weeklyHours, payMonth, rateYear).total,
   };
+}
+
+/**
+ * 4대보험 공제 후 금액 under the 2026년 11월분 rules when it differs from the 10월분 figure shown on
+ * static pages (장기요양 × 0.1314 from November), else null. 2026 rules only.
+ */
+export function novemberNetIfDifferent(weeklyHours: number, wage: number): number | null {
+  const oct = payForWeeklyHours(weeklyHours, wage, 2026, HOURLY_PAY_MONTH).netInsured;
+  const nov = payForWeeklyHours(weeklyHours, wage, 2026, "2026-11").netInsured;
+  return nov === oct ? null : nov;
 }
 
 /** 수습 중 최저 시급 (90%). 2026: 9,288원, 2027: 9,630원. */
@@ -403,6 +471,17 @@ export function scheduleForHours(weeklyHours: number): { daily: number; days: nu
 
 /** 시급 rows shown on landing pages. */
 export const WAGE_TABLE = [10_320, 10_700, 11_000, 12_000, 13_000, 15_000];
+
+/**
+ * 시급 values with their own page at /hourly-wage/wage/<won>/ — the wages people search with
+ * ("시급 12000 월급", "시급 11000 주휴수당", "시급 15000 한달"): the 2026·2027 최저시급 and common round wages.
+ * The static `wage` folder sits next to the [hours] route; static segments win and [hours] only
+ * generates numeric HOURLY_PAGE_HOURS, so the two never clash.
+ */
+export const HOURLY_WAGE_PAGES = [10_320, 10_700, 11_000, 11_500, 12_000, 12_500, 13_000, 14_000, 15_000, 20_000];
+
+/** Weekly 소정근로시간 rows on every /hourly-wage/wage/<won>/ page. */
+export const WAGE_PAGE_HOURS = [15, 20, 30, 40];
 
 /** Format hours: 4 → "4", 3.2 → "3.2", 3.44 → "3.44". */
 export function hoursLabel(h: number): string {

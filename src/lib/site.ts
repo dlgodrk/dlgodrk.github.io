@@ -10,6 +10,19 @@ export const RULE_YEAR = 2026;
 /** Date the rules were last checked (YYYY-MM-DD). Update when rates are re-verified. */
 export const RULES_CHECKED_AT = "2026-10-09";
 
+/**
+ * The site's public contact channel: the source repository's GitHub Issues.
+ * Anyone can read and open an issue without giving the site any personal data
+ * (a GitHub account is needed only to post). No email address is published.
+ */
+export const SITE_CONTACT = {
+  /** Link text, e.g. in the footer */
+  label: "문의·오류 제보",
+  /** Where the channel lives, for prose ("GitHub 이슈") */
+  channel: "GitHub 이슈",
+  url: "https://github.com/dlgodrk/dlgodrk.github.io/issues",
+} as const;
+
 /** Optional search-engine verification codes, injected at build time. */
 export const VERIFICATION = {
   google: process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION,

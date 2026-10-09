@@ -13,16 +13,18 @@ import {
   monthlyHours,
   monthlyHoursExact,
   nearestSalaryManwon,
-  netMonthly2026,
+  netMonthly,
+  RATE_2027_NOTE,
   WEEKLY_HOURS_TABLE,
   yearOverYear,
 } from "@/lib/calc/minimum-wage";
+import { HOURLY_PAY_MONTH, ruleMonthLabel } from "@/lib/calc/hourly-wage";
 import { MinimumWageCalculator } from "./MinimumWageCalculator";
 
 export const metadata: Metadata = pageMetadata({
   title: "최저임금 계산기 2026·2027 - 최저시급 10,320원 월급 환산",
   description:
-    "2026년 최저시급 10,320원, 2027년 10,700원(3.7% 인상)으로 일급·주급·월급·연봉을 바로 환산합니다. 주 40시간 월급은 2026년 2,156,880원, 2027년 2,236,300원이고 수습 90%와 단시간 근무도 계산해요.",
+    "2026년 최저시급 10,320원, 2027년 10,700원(3.7% 인상)으로 일급·주급·월급·연봉을 바로 환산합니다. 주 40시간 월급은 2026년 2,156,880원, 2027년 2,236,300원이고 수습 90%와 단시간 근무도 계산합니다.",
   path: "/minimum-wage/",
   keywords: [
     "최저임금 계산기",
@@ -41,13 +43,19 @@ export const metadata: Metadata = pageMetadata({
 /** Weekly hours that have a landing page at /hourly-wage/<hours>/ (subset of that tool's page list). */
 const HOURLY_PAGE_LINKS = new Set([10, 15, 20, 25, 30, 35, 40]);
 
+/** "2026년 10월분" — the fixed month of the 2026 net-pay figures on this static page. */
+const STATIC_MONTH = `${ruleMonthLabel(HOURLY_PAY_MONTH)}분`;
+
 const FULL = { weeklyHours: 40, dailyHours: 8 };
 const y26 = calcMinimumWage({ year: 2026, ...FULL });
 const y27 = calcMinimumWage({ year: 2027, ...FULL });
 const p26 = calcMinimumWage({ year: 2026, ...FULL, probation: true });
 const p27 = calcMinimumWage({ year: 2027, ...FULL, probation: true });
 const yoy = yearOverYear(FULL);
-const net26 = netMonthly2026(y26.monthly);
+/** 2026년 10월분 net (static page basis month). */
+const net26 = netMonthly(y26.monthly, 40, 2026, HOURLY_PAY_MONTH);
+/** 2027 예상 net — the same figure the 시급·주휴수당 계산기 shows for 10,700원 × 주 40시간. */
+const net27 = netMonthly(y27.monthly, 40, 2027);
 const pt20 = calcMinimumWage({ year: 2026, weeklyHours: 20, dailyHours: 4 });
 const pt15 = calcMinimumWage({ year: 2026, weeklyHours: 15, dailyHours: 3 });
 /** 주 20시간 pay if the 0.01h display value (104.29) were multiplied instead of the exact hours. */
@@ -61,11 +69,11 @@ function hoursText(h: number): string {
 const FAQ: FaqItem[] = [
   {
     q: "2026년 최저임금 월급은 얼마인가요?",
-    a: `주 40시간 근무 기준 월 ${formatWon(y26.monthly)}(세전)입니다. 시급 10,320원에 주휴시간을 포함한 월 209시간을 곱한 금액입니다. 비과세 수당이 없는 1인 가구라면 4대보험과 소득세를 떼고 약 ${formatWon(net26.net)}을 받습니다.`,
+    a: `주 40시간 근무 기준 월 ${formatWon(y26.monthly)}(세전)입니다. 시급 10,320원에 주휴시간을 포함한 월 209시간을 곱한 금액입니다. 비과세 수당이 없는 1인 가구라면 ${STATIC_MONTH} 요율로 4대보험과 소득세를 떼고 약 ${formatWon(net26.net)}을 받습니다.`,
   },
   {
     q: "2027년 최저임금은 얼마인가요?",
-    a: `시급 10,700원으로 2026년보다 380원(3.7%) 오릅니다. 주 40시간 월 환산액은 ${formatWon(y27.monthly)}으로 ${formatWon(yoy.monthly)} 늘어납니다. 2026년 7월 14일 최저임금위원회가 의결했고 8월 5일 확정 고시되어 2027년 1월 1일부터 적용됩니다.`,
+    a: `시급 10,700원으로 2026년보다 380원(3.7%) 오릅니다. 주 40시간 월 환산액은 ${formatWon(y27.monthly)}으로 ${formatWon(yoy.monthly)} 늘어납니다. 2026년 7월 14일 최저임금위원회가 의결했고 8월 5일 확정 고시되어 2027년 1월 1일부터 적용됩니다. 국민연금 근로자 부담이 5.0%로 오르는 것을 반영하면 세후 실수령액은 약 ${formatWon(net27.net)}으로 예상됩니다.`,
   },
   {
     q: "최저임금 월급 209시간은 어떻게 나온 건가요?",
@@ -95,8 +103,8 @@ export default function MinimumWagePage() {
     <ToolShell
       slug="minimum-wage"
       h1="2026·2027 최저임금 계산기 (최저시급 10,320원 → 10,700원)"
-      lead="2026년 최저시급은 10,320원(월 2,156,880원), 2027년은 10,700원(월 2,236,300원)입니다. 근무시간을 넣으면 일급·주급·월급·연봉으로 바로 바꿔 드려요."
-      basis="2026년·2027년 최저임금 고시(고용노동부) 기준 · 2026년 10월 9일 확인"
+      lead="2026년 최저시급은 10,320원(월 2,156,880원), 2027년은 10,700원(월 2,236,300원)이에요. 근무시간을 넣으면 일급·주급·월급·연봉으로 바로 바꿔 드려요."
+      basis={`2026년·2027년 최저임금 고시(고용노동부) 기준 · 표의 실수령액은 ${STATIC_MONTH} 4대보험 요율(2027년은 예상) · 2026년 10월 9일 확인`}
       calculator={<MinimumWageCalculator />}
       faq={FAQ}
       appCategory="FinanceApplication"
@@ -223,48 +231,65 @@ export default function MinimumWagePage() {
         반올림했습니다. 연장·야간·휴일근로수당은 별도입니다.
       </p>
 
-      <h2>2026년 최저임금 월급 실수령액</h2>
+      <h2>최저임금 월급 실수령액 (2026년, 2027년 예상)</h2>
       <p>
         2026년 최저임금 월급 {formatWon(y26.monthly)}에서 근로자 몫의 4대보험과 소득세를 떼면 실제로 받는 돈은 약{" "}
-        <strong>{formatWon(net26.net)}</strong>입니다. 비과세 수당이 없고 부양가족이 없는 1인 기준이며, 식대처럼 비과세
-        수당이 있으면 공제액이 줄어듭니다.
+        <strong>{formatWon(net26.net)}</strong>입니다({STATIC_MONTH} 요율 기준). 2027년에는 월급이 {formatWon(y27.monthly)}으로
+        오르지만 국민연금 근로자 부담도 4.75%에서 5.0%로 올라 실수령액은 약 <strong>{formatWon(net27.net)}</strong>으로
+        예상됩니다. 둘 다 비과세 수당이 없고 부양가족이 없는 1인 기준이며, 식대처럼 비과세 수당이 있으면 공제액이 줄어듭니다.
       </p>
       <div className="table-wrap">
         <table className="data-table">
           <thead>
             <tr>
               <th scope="col">항목</th>
-              <th scope="col">금액</th>
+              <th scope="col">2026년 ({STATIC_MONTH})</th>
+              <th scope="col">2027년 (예상)</th>
             </tr>
           </thead>
           <tbody>
             <tr>
-              <td>국민연금 (4.75%)</td>
-              <td>{formatWon(net26.insurance.pension)}</td>
+              <td>월급 (세전)</td>
+              <td>{formatWon(y26.monthly)}</td>
+              <td>{formatWon(y27.monthly)}</td>
+            </tr>
+            <tr>
+              <td>국민연금 (4.75% → 5.0%)</td>
+              <td>{formatWon(net26.pension)}</td>
+              <td>{formatWon(net27.pension)}</td>
             </tr>
             <tr>
               <td>건강보험 (3.595%)</td>
-              <td>{formatWon(net26.insurance.health)}</td>
+              <td>{formatWon(net26.health)}</td>
+              <td>{formatWon(net27.health)}</td>
             </tr>
             <tr>
               <td>장기요양보험</td>
-              <td>{formatWon(net26.insurance.longTermCare)}</td>
+              <td>{formatWon(net26.longTermCare)}</td>
+              <td>{formatWon(net27.longTermCare)}</td>
             </tr>
             <tr>
               <td>고용보험 (0.9%)</td>
-              <td>{formatWon(net26.insurance.employment)}</td>
+              <td>{formatWon(net26.employment)}</td>
+              <td>{formatWon(net27.employment)}</td>
             </tr>
             <tr>
               <td>소득세 + 지방소득세</td>
-              <td>{formatWon(net26.tax.total)}</td>
+              <td>{formatWon(net26.taxTotal)}</td>
+              <td>{formatWon(net27.taxTotal)}</td>
             </tr>
             <tr className="is-current">
               <td>월 실수령액</td>
               <td>{formatWon(net26.net)}</td>
+              <td>{formatWon(net27.net)}</td>
             </tr>
           </tbody>
         </table>
       </div>
+      <p className="note">
+        2026년 열은 {STATIC_MONTH} 4대보험 요율과 간이세액표(본인 1명)를 적용했고, 계산기는 접속한 달의 요율을 씁니다. 2026년
+        11월분부터 장기요양보험료 계산 방식이 바뀌지만 이 월급에서는 금액이 같습니다. {RATE_2027_NOTE}
+      </p>
       <p>
         부양가족이나 비과세 금액을 바꿔 보려면 <Link href="/salary/">연봉 실수령액 계산기</Link>를 이용하세요. 최저임금 연봉
         환산액은 2026년 약 {koreanWon(Math.round(y26.annual / 10_000) * 10_000)}, 2027년 약{" "}
@@ -436,6 +461,11 @@ export default function MinimumWagePage() {
         {WEEKLY_HOURS_TABLE.filter((w) => HOURLY_PAGE_LINKS.has(w) && w !== 40).map((w) => (
           <Link key={w} href={`/hourly-wage/${w}/`}>
             주 {w}시간 알바 월급
+          </Link>
+        ))}
+        {[y26.hourly, y27.hourly].map((w) => (
+          <Link key={`wage-${w}`} href={`/hourly-wage/wage/${w}/`}>
+            시급 {formatNumber(w)}원 월급
           </Link>
         ))}
         {salaryLinks.map((m) => (

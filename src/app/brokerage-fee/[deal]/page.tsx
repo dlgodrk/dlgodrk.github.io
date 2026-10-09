@@ -18,6 +18,7 @@ import {
   withVat,
   type FeePage,
 } from "@/lib/calc/brokerage-fee";
+import { findAcqPage, totalFor } from "@/lib/calc/acquisition-tax";
 import { BrokerageFeeCalculator } from "../BrokerageFeeCalculator";
 
 // Only the listed amounts exist; anything else is a 404 (required for static export).
@@ -97,6 +98,10 @@ export default async function BrokerageFeeDetailPage({ params }: Props) {
   const otherFee = maxFeeFor("house", otherDeal, p.amount);
   const otherRule = feeRule("house", otherDeal, p.amount);
 
+  // Same-price acquisition-tax page (exact match only) for the 취득세 cross-link.
+  const acqPage = isSale ? findAcqPage(String(p.amount / MAN)) : null;
+  const acqTotal = isSale ? totalFor(p.amount, { houses: 1, regulated: false, over85: false }) : 0;
+
   const faq: FaqItem[] = [
     {
       q: `${subject} 복비는 얼마인가요?`,
@@ -161,6 +166,23 @@ export default async function BrokerageFeeDetailPage({ params }: Props) {
           ? `보증금이 같은 ${label}인 전세라면 임대차 요율 ${pctLabel(otherRule.rate)}가 적용돼 상한은 ${koreanWon(otherFee)}입니다.`
           : `같은 ${label}에 집을 매매한다면 매매 요율 ${pctLabel(otherRule.rate)}가 적용돼 상한은 ${koreanWon(otherFee)}입니다. 보증금에 월세가 붙는 반전세라면 보증금 + 월세 × 100을 거래금액으로 계산하니 위 계산기에서 월세를 선택해 보세요.`}
       </p>
+      {isSale ? (
+        <p>
+          집을 사는 쪽은 복비와 함께 취득세도 냅니다. 같은 {label}원 아파트를 1주택(전용 85㎡ 이하)으로 사면 취득세와
+          지방교육세를 합쳐 <strong>{koreanWon(acqTotal)}</strong>이고, 주택 수·면적별 금액은{" "}
+          {acqPage !== null ? (
+            <Link href={`/acquisition-tax/${acqPage}/`}>{label} 아파트 취득세</Link>
+          ) : (
+            <Link href="/acquisition-tax/">취득세 계산기</Link>
+          )}
+          에서 확인할 수 있습니다.
+        </p>
+      ) : (
+        <p>
+          계약 중에 전세 일부를 월세로 바꾼다면 받을 수 있는 월세에 법정 상한이 있습니다. 바꾸는 보증금에 따른 월세 상한은{" "}
+          <Link href="/rent-conversion/">전월세 전환율 계산기</Link>로 계산해 볼 수 있습니다.
+        </p>
+      )}
 
       <h2>협의 요율별 {subject} 복비</h2>
       <p>상한요율보다 낮게 합의하는 경우가 많습니다. 요율별로 한쪽이 내는 금액은 아래와 같습니다.</p>

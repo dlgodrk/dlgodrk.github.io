@@ -332,8 +332,14 @@ export type Scenario = {
   label: string;
   /** 이 시나리오를 찾는 상황 설명 (합니다체, 숫자 계산 없이) */
   context: string;
+  /** context에 인용한 수치의 출처 (있을 때만 링크로 보여 준다) */
+  source?: { label: string; href: string };
   keywords: string[];
 };
+
+/** 투자 수익률을 가정한 계산 옆에 붙이는 안내 (합니다체). */
+export const INVEST_DISCLAIMER =
+  "이 계산은 매년 같은 수익률이 이어진다고 가정한 예시이며 투자 권유가 아닙니다. 과거 수익률은 미래 수익을 보장하지 않고, 주식·펀드 같은 투자 상품은 원금 손실이 날 수 있습니다.";
 
 /** URL slug: monthly-<만원>-<년>y-<%> 또는 lump-<만원>-<년>y-<%> */
 export function scenarioSlug(s: Pick<Scenario, "principal" | "monthly" | "years" | "ratePct">): string {
@@ -352,7 +358,12 @@ export const SCENARIOS: Scenario[] = [
     ratePct: 10,
     label: "월 10만원 30년",
     context:
-      "월 10만원을 미국 S&P 500 지수 상품에 30년 동안 넣으면 얼마가 되는지는 적립식 투자를 처음 시작할 때 가장 많이 찾는 계산입니다. 연 10%는 S&P 500의 장기 연평균 수익률(배당 재투자, 달러 기준, 물가 반영 전)로 흔히 인용되는 값이지만, 과거 수익률이 앞으로도 이어진다는 보장은 없고 환율과 세금에 따라 원화 기준 결과도 달라집니다.",
+      "월 10만원을 미국 S&P 500 지수 상품에 30년 동안 넣으면 얼마가 되는지는 적립식 투자를 처음 시작할 때 가장 많이 찾는 계산입니다. 연 10%는 1928~2025년 S&P 500의 연평균 수익률(기하평균, 배당 재투자, 달러 기준, 물가 반영 전) 약 10.0%를 반올림한 값입니다. 같은 기간에도 한 해 수익률은 −44%에서 +53%까지 오르내렸고, 과거 수익률이 앞으로도 이어진다는 보장은 없으며 환율과 세금에 따라 원화 기준 결과도 달라집니다.",
+    // 1928~2025년 연도별 수익률(배당 포함) 98개의 기하평균 = 10.02%. 최저 1931년 −43.84%, 최고 1954년 +52.56%.
+    source: {
+      label: "뉴욕대 Damodaran 교수의 S&P 500 연도별 수익률 자료(1928~2025년)",
+      href: "https://pages.stern.nyu.edu/~adamodar/New_Home_Page/datafile/histretSP.html",
+    },
     keywords: ["월 10만원 30년 복리", "월 10만원 S&P500 30년", "10만원씩 30년 투자"],
   },
   {
@@ -436,6 +447,16 @@ export const SCENARIOS: Scenario[] = [
 
 export function findScenario(slug: string): Scenario | null {
   return SCENARIOS.find((s) => s.slug === slug) ?? null;
+}
+
+/** 매월 `monthly`원만 넣는 적립식 시나리오들. /savings/<만원>/ 페이지와 서로 링크한다. */
+export function scenariosForMonthly(monthly: number): Scenario[] {
+  return SCENARIOS.filter((s) => s.principal === 0 && s.monthly === monthly);
+}
+
+/** 목돈 `principal`원만 넣는 거치식 시나리오들. /deposit/<만원>/ 페이지와 서로 링크한다. */
+export function scenariosForLump(principal: number): Scenario[] {
+  return SCENARIOS.filter((s) => s.monthly === 0 && s.principal === principal);
 }
 
 /** 수익률·기간 비교표에 쓰는 값 */

@@ -1,17 +1,25 @@
 import { MINIMUM_WAGE } from "@/lib/rates/labor";
-import { employeeInsurance, type InsuranceBreakdown } from "@/lib/rates/insurance";
-import { monthlyWithholding, type Withholding } from "@/lib/rates/withholding";
-import { DEFAULT_PAY_MONTH } from "@/lib/calc/salary";
 import {
+  HOURLY_PAY_MONTH,
+  insuredDeductions,
   monthlyHours as monthlyHoursForWeek,
   monthlyHoursExact as monthlyHoursExactForPaid,
   monthlyPay,
   monthlyPayHours as monthlyPayHoursForWeek,
   uses209,
+  type InsuredDeductions,
 } from "@/lib/calc/hourly-wage";
 
 /** Display helpers shared with the 시급·주휴수당 계산기 ("104.2857…", whether 0.01h display is exact). */
-export { exactHoursLabel, shownHoursAreExact } from "@/lib/calc/hourly-wage";
+export {
+  exactHoursLabel,
+  HOURLY_PAY_MONTH,
+  pensionRateLabel,
+  RATE_2027_NOTE,
+  RATE_2027_NOTE_UI,
+  ruleMonthLabel,
+  shownHoursAreExact,
+} from "@/lib/calc/hourly-wage";
 
 /**
  * 최저임금 환산 (2026·2027).
@@ -32,6 +40,9 @@ export { exactHoursLabel, shownHoursAreExact } from "@/lib/calc/hourly-wage";
  *   2026 주 15시간 10,320 × 78.2142857… = 807,171.43 → 807,171원, 주 20시간 1,076,228.57 → 1,076,229원.
  * - 금액은 원 단위 반올림 (hourly-wage와 같은 방식이라 두 계산기가 같은 근무조건에서 같은 금액을 보여 줍니다).
  * - 근로기준법 제50조②·제56조①: 1일 8시간 초과는 연장근로, 5인 이상 사업장은 통상임금의 50% 가산.
+ * - 세후 실수령액 (netMonthly): hourly-wage insuredDeductions(). 2026 = rules of a pay month (static page
+ *   2026년 10월분, calculator = the visitor's month); 2027 = 예상 (국민연금 5.0% 법정 인상, 건강보험료율
+ *   7.19% 동결 2026-09-08 건정심 의결·고시 전, 장기요양·고용보험 요율과 간이세액표는 2026년 값으로 가정).
  */
 
 export type MinWageYear = 2026 | 2027;
@@ -195,17 +206,41 @@ export function yearOverYear(input: Omit<MinWageInput, "year">) {
   };
 }
 
-export type NetPay = { insurance: InsuranceBreakdown; tax: Withholding; deductions: number; net: number };
+export type NetPay = InsuredDeductions & {
+  year: MinWageYear;
+  /** 2026 rules month used ("2026-10" on the static page; the visitor's month in the calculator) */
+  payMonth: string;
+  /** 4대보험 근로자분 합계 */
+  insuranceTotal: number;
+  /** 소득세 + 지방소득세 */
+  taxTotal: number;
+  net: number;
+};
 
 /**
- * 세후 예상 월 실수령액 (2026년 4대보험 요율·간이세액표, 비과세 0원, 본인 1인 가구).
- * 2027년 요율은 아직 확정 전이라 2026년 금액에만 씁니다.
+ * 세후 예상 월 실수령액 (비과세 0원, 공제대상가족 본인 1명) — the 시급·주휴수당 계산기's
+ * insuredDeductions(), so both tools show the same figure for the same pay, hours and year.
+ * - 2026: 4대보험 rules of `payMonth` (default 2026-10, the static page's 10월분).
+ * - 2027 (예상): 국민연금 근로자 5.0% (법정 인상), 건강보험료율 7.19% 동결 (2026-09-08 건정심 의결,
+ *   고시 전); 장기요양·고용보험 요율과 간이세액표는 미정이라 2026년 값으로 가정. `payMonth` is ignored.
+ * - 주 15시간 미만 초단시간: 국민연금·건강보험 제외, 고용보험만 (3개월 이상 계속 근로 가정).
  */
-export function netMonthly2026(monthly: number): NetPay {
-  const insurance = employeeInsurance(monthly, DEFAULT_PAY_MONTH);
-  const tax = monthlyWithholding(monthly, 1, 0, 100, DEFAULT_PAY_MONTH);
-  const deductions = insurance.total + tax.total;
-  return { insurance, tax, deductions, net: monthly - deductions };
+export function netMonthly(
+  monthly: number,
+  weeklyHours: number,
+  year: MinWageYear,
+  payMonth: string = HOURLY_PAY_MONTH,
+): NetPay {
+  const d = insuredDeductions(monthly, weeklyHours, payMonth, year);
+  const insuranceTotal = d.pension + d.health + d.longTermCare + d.employment;
+  return {
+    ...d,
+    year,
+    payMonth,
+    insuranceTotal,
+    taxTotal: d.incomeTax + d.localTax,
+    net: monthly - d.total,
+  };
 }
 
 /**

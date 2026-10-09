@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { pageMetadata } from "@/lib/seo";
-import { RULES_CHECKED_AT, RULE_YEAR, SITE_NAME } from "@/lib/site";
+import { RULES_CHECKED_AT, RULE_YEAR, SITE_CONTACT, SITE_NAME } from "@/lib/site";
 
 export const metadata: Metadata = pageMetadata({
   title: "셈셈 계산기 소개",
@@ -26,8 +26,18 @@ export default function AboutPage() {
       </ul>
       <h2>개인정보</h2>
       <p>
-        입력한 숫자는 브라우저 안에서만 계산되고 서버로 보내지 않습니다. 자세한 내용은{" "}
-        <Link href="/privacy/">개인정보처리방침</Link>을 보세요.
+        입력한 값은 브라우저 안에서만 계산되고 서버로 보내지 않습니다. 글자수 세기만 쓰던 글을 이 브라우저에 잠시 보관하며,
+        이 글도 서버로 보내지 않습니다. 자세한 내용은 <Link href="/privacy/">개인정보처리방침</Link>을 보세요.
+      </p>
+      <h2 id="contact">문의와 오류 제보</h2>
+      <p>
+        계산 결과가 공식 자료와 다르거나, 바뀐 제도가 아직 반영되지 않았거나, 개인정보와 관련해 묻고 싶은 점이 있으면{" "}
+        <a href={SITE_CONTACT.url}>{SITE_CONTACT.channel}</a>에 남겨 주세요. 어느 계산기에서 어떤 값을 넣었는지와 근거 자료를
+        함께 적어 주시면 빠르게 확인할 수 있습니다. 확인한 오류는 계산식과 설명에 반영합니다.
+      </p>
+      <p>
+        이슈는 누구나 볼 수 있는 공개 게시판입니다. 이름, 연락처, 주소처럼 개인을 알아볼 수 있는 정보는 적지 마세요. 글을
+        남기려면 GitHub 계정이 필요하며, 읽는 데는 필요하지 않습니다.
       </p>
       <h2>결과를 쓸 때 주의할 점</h2>
       <p>

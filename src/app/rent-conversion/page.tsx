@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { ToolShell } from "@/components/ToolShell";
 import { pageMetadata, type FaqItem } from "@/lib/seo";
 import { formatKoreanDate, parseYMD } from "@/lib/date";
@@ -137,6 +138,14 @@ export default function RentConversionPage() {
         <strong>연 {formatNumber(over.ratePct, 2)}%</strong>로 상한 {CAP}를 넘습니다. 상한 기준 월세는{" "}
         {formatWon(over.capMonthlyRent)}이라 매달 {formatWon(over.excessPerMonth)}, 1년에{" "}
         {formatWon(over.excessPerMonth * 12)}을 더 내는 셈입니다.
+      </p>
+      <p>
+        보증금을 돌려받아 월세로 바꿀지, 전세자금대출로 보증금을 유지할지 고민된다면 월세와 대출 이자를 나란히 놓고
+        비교해 보세요. 전세대출처럼 만기에 원금을 한 번에 갚는 대출의 월 이자는{" "}
+        <Link href="/loan/">대출 이자 계산기</Link>에서 만기일시 상환으로 계산할 수 있습니다. 중개사를 통해 월세
+        계약을 새로 맺으면 보증금 + 월세 × 100(합계가 5천만원 미만이면 × 70)을 거래금액으로 중개보수를 내는데, 그
+        금액은{" "}
+        <Link href="/brokerage-fee/">복비 계산기</Link>에서 확인할 수 있습니다.
       </p>
 
       <h2>전환 금액별 월세표</h2>

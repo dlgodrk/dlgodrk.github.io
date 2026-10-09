@@ -56,11 +56,19 @@ function chipLabel(manwon: number): string {
   return manwon >= 10_000 && manwon % 10_000 === 0 ? `${manwon / 10_000}억` : `${formatNumber(manwon)}만`;
 }
 
-export function SalaryCalculator({ initialManwon = 4_000 }: { initialManwon?: number }) {
+export function SalaryCalculator({
+  initialManwon = 4_000,
+  initialMode = "y",
+}: {
+  /** 연봉 (or 월급 when initialMode is "m") in 만원 */
+  initialManwon?: number;
+  /** "m" on the /salary/monthly/<만원>/ pages so the calculator opens in 월급 mode */
+  initialMode?: SalaryMode;
+}) {
   // URL keys: m 입력 기준(y 연봉 | m 월급), a 금액(만원), s 퇴직금 포함, n 월 비과세(원),
   //           f 공제대상가족 수, c 8~20세 자녀 수, r 원천징수 비율(%)
   const [s, set] = useUrlState({
-    m: "y" as SalaryMode,
+    m: initialMode,
     a: initialManwon,
     s: false as boolean,
     n: DEFAULT_NON_TAXABLE,
@@ -245,7 +253,9 @@ export function SalaryCalculator({ initialManwon = 4_000 }: { initialManwon?: nu
               <StatementFootnote>
                 {[
                   `${payMonthLabel(payMonth)} 급여 기준 요율로 계산했어요.`,
-                  clampedYear ? "2027년 요율이 반영되기 전이라 2026년 기준으로 보여 드려요." : null,
+                  clampedYear
+                    ? `2027년 국민연금 인상(근로자 5.0%) 등 2027년 요율은 아직 반영하지 않아 ${payMonthLabel(payMonth)}분 기준으로 보여 드려요.`
+                    : null,
                   severance && input
                     ? `연봉 중 ${formatNumber(input.annual - r.monthlyGross * 12)}원은 퇴직금 몫이라 매달 받는 돈에서 빠져요.`
                     : null,

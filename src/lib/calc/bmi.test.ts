@@ -3,6 +3,7 @@ import {
   BMI_CLASSES,
   BMI_PAGE_HEIGHTS,
   bmiEquation,
+  bmiPerKg,
   calcBmi,
   classifyBmi,
   classWeightLabel,
@@ -12,10 +13,13 @@ import {
   formatBmi,
   formatKg,
   getBmiClass,
+  heightBand,
   isValidInput,
+  KOREAN_AVG_HEIGHT_CM,
   minWeightAtOrAbove,
   neighborHeights,
   normalRangeGap,
+  normalRangeWidth,
   normalWeightRange,
   scalePosition,
   standardWeight,
@@ -190,6 +194,28 @@ describe("scalePosition", () => {
     expect(scalePosition(35)).toBeCloseTo(5 / 6, 10);
     expect(scalePosition(12)).toBe(0);
     expect(scalePosition(45)).toBe(1);
+  });
+});
+
+describe("per-height page copy helpers", () => {
+  it("bands heights around the 제8차 한국인 인체치수조사 averages (남 172.5 · 여 159.6cm)", () => {
+    expect(KOREAN_AVG_HEIGHT_CM).toEqual({ m: 172.5, f: 159.6 });
+    expect([140, 149, 150, 164, 165, 179, 180, 200].map(heightBand)).toEqual([
+      "short",
+      "short",
+      "female",
+      "female",
+      "male",
+      "male",
+      "tall",
+      "tall",
+    ]);
+  });
+  it("gives the BMI change per kg and the normal-range width", () => {
+    expect(bmiPerKg(170)).toBeCloseTo(0.346, 3); // 1 ÷ 2.89
+    expect(bmiPerKg(140, 5)).toBeCloseTo(2.551, 3); // 5 ÷ 1.96
+    expect(normalRangeWidth(170)).toBe(12.9); // 53.5~66.4kg
+    expect(normalRangeWidth(140)).toBeLessThan(normalRangeWidth(200));
   });
 });
 

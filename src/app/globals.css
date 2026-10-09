@@ -278,7 +278,8 @@ input[type="date"].field-input {
   color: var(--ink);
   cursor: pointer;
 }
-.stepper button:disabled {
+.stepper button:disabled,
+.stepper button[aria-disabled="true"] {
   color: var(--rule-strong);
   cursor: not-allowed;
 }
@@ -335,11 +336,26 @@ input[type="date"].field-input {
   color: var(--muted);
 }
 .statement-hero {
+  /* Room the figure may use on one line: the hero's inner width, minus the seal when there is one. */
+  --hero-room: calc(100cqi - 2.5rem);
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 1rem;
+  gap: 0.5rem 1rem;
   padding: 1.25rem 1.25rem 1.125rem;
+}
+.statement-hero.has-seal {
+  --hero-room: calc(100cqi - 2.5rem - 5.25rem);
+}
+.statement-hero-main {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+/* Only the figure decides whether the seal still fits beside it; a long label or sub line wraps instead. */
+.statement-hero-label,
+.statement-hero-sub {
+  contain: inline-size;
 }
 .statement-hero-label {
   font-size: 0.875rem;
@@ -348,15 +364,19 @@ input[type="date"].field-input {
 }
 .statement-hero-value {
   margin-top: 0.125rem;
-  /* Scale with the statement's own width so long figures never break mid-number. */
-  font-size: clamp(1.5rem, 9cqi, 2.625rem);
+  /*
+   * Scale with the statement's own width, and shrink long figures so they fit beside the seal:
+   * --hero-em (set by StatementHero) is the estimated width of the longest unbreakable run in em.
+   * At the 1.25rem floor a very long figure may still be too wide; then the seal wraps below it.
+   */
+  font-size: clamp(1.25rem, min(9cqi, calc(var(--hero-room) / var(--hero-em, 6))), 2.625rem);
   line-height: 1.15;
   font-weight: 700;
   letter-spacing: -0.025em;
   color: var(--ink);
-  /* Wrap only between words; never inside a number like 2,935,813원. */
+  /* Wrap only between words; break inside a number like 2,935,813원 only if it cannot fit at all. */
   word-break: keep-all;
-  overflow-wrap: normal;
+  overflow-wrap: break-word;
 }
 .statement-hero-sub {
   margin-top: 0.25rem;
@@ -365,6 +385,7 @@ input[type="date"].field-input {
 }
 .seal {
   flex: none;
+  margin-left: auto;
   display: grid;
   place-items: center;
   width: 4.25rem;
@@ -536,6 +557,9 @@ input[type="date"].field-input {
 
 /* Data tables inside prose and on programmatic pages */
 .table-wrap {
+  /* Contain absolutely positioned children (e.g. .sr-only labels) so they scroll with the table
+     instead of widening the page. */
+  position: relative;
   max-width: 100%;
   overflow-x: auto;
   border: 1px solid var(--rule);

@@ -13,6 +13,7 @@ import {
   doublingYears,
   findScenario,
   gainTax,
+  INVEST_DISCLAIMER,
   realValue,
   rule72Years,
   SCENARIOS,
@@ -23,6 +24,8 @@ import {
   type Scenario,
   type Timing,
 } from "@/lib/calc/compound-interest";
+import { calcSavings, SAVINGS_HEADLINE_RATE, SAVINGS_PAGE_MONTHLY } from "@/lib/calc/savings";
+import { DEPOSIT_PAGE_MANWON, depositAmountLabel, EXAMPLE_RATE_PCT, netInterestSimple } from "@/lib/calc/deposit";
 import { CompoundInterestCalculator } from "../CompoundInterestCalculator";
 
 // Only the listed scenarios exist; anything else is a 404 (required for static export).
@@ -56,6 +59,38 @@ function actionPhrase(s: Scenario): string {
 /** Table caption: "월 100만원 · 10년(120회)" / "1,000만원 거치 · 10년". */
 function captionPhrase(s: Scenario): string {
   return s.monthly > 0 ? `월 ${approxWon(s.monthly)} · ${s.years}년(${s.years * 12}회)` : `${approxWon(s.principal)} 거치 · ${s.years}년`;
+}
+
+type BankLink = { heading: string; text: string; href: string; linkText: string };
+
+/**
+ * 같은 금액의 은행 적금(/savings/<만원>/)이나 정기예금(/deposit/<만원>/) 페이지가 있으면, 확정 금리로 받는 금액과
+ * 함께 그 페이지로 링크한다. 그 페이지들도 이 시나리오로 링크한다 (scenariosForMonthly·scenariosForLump).
+ */
+function bankComparison(s: Scenario): BankLink | null {
+  if (s.principal === 0 && s.monthly > 0) {
+    const manwon = s.monthly / 10_000;
+    if (!SAVINGS_PAGE_MONTHLY.includes(manwon)) return null;
+    const r = calcSavings({ monthly: s.monthly, months: 12, ratePct: SAVINGS_HEADLINE_RATE });
+    return {
+      heading: `같은 월 ${manwon}만원을 은행 적금에 넣으면`,
+      text: `월 ${manwon}만원을 은행 정기적금(연 ${SAVINGS_HEADLINE_RATE}% 단리, 일반과세 15.4%)에 1년 넣으면 세후 이자는 ${formatWon(r.afterTaxInterest)}, 만기 수령액은 ${formatWon(r.maturity)}입니다. 적금은 이자가 적어도 약정한 금리를 그대로 받으므로, 투자 수익률을 가정한 위 금액과 나란히 놓고 비교해 보세요.`,
+      href: `/savings/${manwon}/`,
+      linkText: `월 ${manwon}만원 적금 이자 보기`,
+    };
+  }
+  if (s.monthly === 0 && s.principal > 0) {
+    const manwon = s.principal / 10_000;
+    if (!DEPOSIT_PAGE_MANWON.includes(manwon)) return null;
+    const label = depositAmountLabel(manwon);
+    return {
+      heading: `같은 ${label}을 정기예금에 맡기면`,
+      text: `${label}을 연 ${EXAMPLE_RATE_PCT}% 정기예금에 1년 맡기면 세후 이자는 ${formatWon(netInterestSimple(s.principal, EXAMPLE_RATE_PCT, 12))}입니다. 예금은 약정 금리가 확정되고 금융회사별로 원금과 이자를 합쳐 1억원까지 예금자보호를 받습니다.`,
+      href: `/deposit/${manwon}/`,
+      linkText: `${label} 예금 이자 보기`,
+    };
+  }
+  return null;
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -93,6 +128,7 @@ export default async function CompoundScenarioPage({ params }: Props) {
   const yearlyContribution = s.monthly * 12;
   const crossYear = r.rows.find((row) => row.gain >= row.contributed)?.year ?? null;
   const half = r.rows[Math.max(0, Math.floor(s.years / 2) - 1)];
+  const bank = bankComparison(s);
 
   const rateLine = `${s.ratePct}% ÷ 12`;
   const formula = isMonthly
@@ -159,7 +195,19 @@ export default async function CompoundScenarioPage({ params }: Props) {
         {s.label} 연 {s.ratePct}% 복리 계산
       </h2>
       <p className="formula">{formula}</p>
-      <p>{s.context}</p>
+      <p>
+        {s.context}
+        {s.source ? (
+          <>
+            {" "}
+            (출처:{" "}
+            <a href={s.source.href} target="_blank" rel="noopener noreferrer">
+              {s.source.label}
+            </a>
+            )
+          </>
+        ) : null}
+      </p>
       <p>
         {isMonthly ? (
           <>
@@ -283,6 +331,17 @@ export default async function CompoundScenarioPage({ params }: Props) {
         분기·연복리는 주기 중간의 돈에 주기 끝까지 단리로 이자가 쌓인다고 계산했습니다. 공식과 가정은{" "}
         <Link href="/compound-interest/">복리 계산기</Link> 본문에 정리했습니다.
       </p>
+
+      {bank ? (
+        <>
+          <h2>{bank.heading}</h2>
+          <p>
+            {bank.text} <Link href={bank.href}>{bank.linkText}</Link>
+          </p>
+        </>
+      ) : null}
+
+      <p className="note">{INVEST_DISCLAIMER}</p>
 
       <h2>다른 복리 시나리오</h2>
       <nav aria-label="복리 계산 시나리오 페이지" className="link-grid">

@@ -45,7 +45,9 @@ export function ToolSearch() {
         aria-activedescendant={open && results[active] ? `ts-${results[active].slug}` : undefined}
         placeholder="계산기 찾기 (예: 퇴직금)"
         autoComplete="off"
-        className="h-9 w-full rounded-lg border border-rule-strong bg-sheet px-3 text-[0.9375rem] text-ink placeholder:text-muted focus:border-link focus:outline-none"
+        // Keep 16px at every width (iPhones in landscape are wider than sm): iOS Safari zooms
+        // the page when a field under 16px gets focus.
+        className="h-9 w-full rounded-lg border border-rule-strong bg-sheet px-3 text-base text-ink placeholder:text-muted focus:border-link focus:outline-none"
         value={q}
         onChange={(e) => {
           setQ(e.target.value);

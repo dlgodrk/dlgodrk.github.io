@@ -20,11 +20,15 @@ import {
   rule72Years,
   scenarioSlug,
   SCENARIOS,
+  scenariosForLump,
+  scenariosForMonthly,
   simpleValue,
   TABLE_RATES,
   TABLE_YEARS,
   type Timing,
 } from "./compound-interest";
+import { SAVINGS_PAGE_MONTHLY } from "./savings";
+import { DEPOSIT_PAGE_MANWON } from "./deposit";
 
 describe("compound-interest: lump sum (거치식)", () => {
   // Textbook compound-interest factors: (1.05)^10 = 1.628894627, (1 + 0.05/12)^120 = 1.647009498,
@@ -255,5 +259,25 @@ describe("compound-interest: scenarios", () => {
     expect(get("lump-10000-20y-5").balance).toBe(271_264_029);
     expect(get("monthly-50-30y-7").contributed).toBe(180_000_000);
     expect(get("monthly-100-20y-7").contributed).toBe(240_000_000);
+  });
+
+  it("cross-links: savings/deposit pages and scenarios with the same amount find each other", () => {
+    expect(scenariosForMonthly(100_000).map((s) => s.slug)).toEqual(["monthly-10-30y-10"]);
+    expect(scenariosForMonthly(1_000_000).map((s) => s.slug)).toEqual(["monthly-100-10y-5", "monthly-100-20y-7"]);
+    expect(scenariosForMonthly(200_000)).toEqual([]);
+    expect(scenariosForLump(50_000_000).map((s) => s.slug)).toEqual(["lump-5000-10y-4"]);
+    expect(scenariosForLump(30_000_000)).toEqual([]);
+    // Every scenario has a matching /savings/<만원>/ or /deposit/<만원>/ page to link back to.
+    for (const s of SCENARIOS) {
+      const manwon = (s.monthly > 0 ? s.monthly : s.principal) / 10_000;
+      expect(s.monthly > 0 ? SAVINGS_PAGE_MONTHLY : DEPOSIT_PAGE_MANWON).toContain(manwon);
+    }
+  });
+
+  it("market-return assumptions cite a source", () => {
+    // 연 10% = 1928~2025년 S&P 500(배당 포함) 연도별 수익률 98개의 기하평균 10.02%를 반올림 (NYU Stern, Damodaran)
+    const sp = findScenario("monthly-10-30y-10")!;
+    expect(sp.context).toContain("1928~2025년");
+    expect(sp.source?.href).toMatch(/^https:\/\/pages\.stern\.nyu\.edu\//);
   });
 });

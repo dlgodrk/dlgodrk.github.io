@@ -12,6 +12,7 @@ import {
   LOAN_TABLE_RATES,
   loanAmountLabel,
   loanDefaultYears,
+  loanPageHeadline,
   loanTableYears,
   METHOD_LABEL,
   monthlyRate,
@@ -61,7 +62,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   if (manwon === null) return {};
   const { label, years, base, tableYears } = pageData(manwon);
   return pageMetadata({
-    title: `${label} 대출 이자 - 월 상환액 표 (금리·기간별)`,
+    title: loanPageHeadline(manwon).title,
     description: `${label}을 연 4%로 ${years}년 원리금균등 상환하면 월 ${formatWon(base.payment)}, 총 이자 ${koreanWon(base.totalInterest)}입니다. 금리 3~6%, 기간 ${tableYears.join("·")}년별 월 상환액과 총 이자 표, 상환방식 비교를 확인하세요.`,
     path: `/loan/${manwon}/`,
     keywords: [`${label} 대출 이자`, `${altLabel(manwon)} 대출 이자`, `${label} 월 상환액`, `${label} 대출 이자 계산`, "대출 이자 계산기"],
@@ -110,7 +111,7 @@ export default async function LoanAmountPage({ params }: Props) {
       slug="loan"
       path={`/loan/${manwon}/`}
       extraCrumbs={[{ name: `${label} 대출`, path: `/loan/${manwon}/` }]}
-      h1={`${label} 대출 이자: 월 상환액 표 (금리·기간별)`}
+      h1={loanPageHeadline(manwon).h1}
       lead={`${label}을 연 4%로 ${years}년 동안 원리금균등으로 갚으면 매달 ${formatWon(base.payment)}, 총 이자는 ${koreanWon(base.totalInterest)}입니다. 금리와 기간을 바꾸면 바로 다시 계산해 드려요.`}
       basis="월 이율 = 연 이율 ÷ 12 · 원 미만 반올림 · 고정금리 가정"
       calculator={<LoanCalculator initialAmount={principal} initialYears={years} />}

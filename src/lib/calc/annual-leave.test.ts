@@ -8,7 +8,10 @@ import {
   completedMonths,
   cumulativeFiscalBasis,
   cumulativeHireBasis,
+  DATE_MAX,
+  DATE_MIN,
   fiscalProrataDays,
+  isDateInRange,
   hireYearWorkedDays,
   leaveAllowance,
   leaveTable,
@@ -233,6 +236,23 @@ describe("회계연도 기준 (fiscal basis)", () => {
     // 2023. 8. 1. 퇴직: 입사일 기준 41일 > 회계연도 기준 → 차이만큼 정산
     expect(cumulativeHireBasis(hire, d("2023-08-01"))).toBe(41);
     expect(cumulativeHireBasis(hire, d("2023-08-01")) - cumulativeFiscalBasis(hire, d("2023-08-01"))).toBeCloseTo(7.44, 2);
+  });
+});
+
+describe("입력 범위 (1900-01-01 ~ 2100-12-31)", () => {
+  it("accepts the bounds and rejects half-typed years", () => {
+    expect(isDateInRange(d(DATE_MIN))).toBe(true);
+    expect(isDateInRange(d(DATE_MAX))).toBe(true);
+    expect(isDateInRange(d("1899-12-31"))).toBe(false);
+    expect(isDateInRange(d("2101-01-01"))).toBe(false);
+    for (const s of ["0002-03-04", "0020-03-04", "0202-03-04"]) expect(isDateInRange(d(s))).toBe(false);
+  });
+  it("returns null instead of a 1,800-year tenure", () => {
+    // "0202-03-04" is what Chrome sends while "2024" is being typed into 입사일.
+    const base = { asOf: d("2026-10-09"), basis: "hire" as const, attended80: true };
+    expect(calculateLeave({ ...base, hire: d("0202-03-04") })).toBeNull();
+    expect(calculateLeave({ ...base, hire: d("2024-03-04"), asOf: d("0202-10-09") })).toBeNull();
+    expect(calculateLeave({ ...base, hire: d("2024-03-04") })?.current.days).toBe(15);
   });
 });
 

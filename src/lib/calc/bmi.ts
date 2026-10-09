@@ -213,6 +213,39 @@ export function isValidInput(heightCm: number, weightKg: number): boolean {
   );
 }
 
+/**
+ * 한국 성인 평균 키 (cm): 국가기술표준원 「제8차 한국인 인체치수조사」(2020.5.~2021.12. 측정, 20~69세 6,839명,
+ * 2022. 3. 30. 발표) 남성 172.5cm, 여성 159.6cm. The latest published round as of 2026-10.
+ */
+export const KOREAN_AVG_HEIGHT_CM: Record<Sex, number> = { m: 172.5, f: 159.6 };
+
+/**
+ * Height bands for the per-height page copy:
+ *   short  < 150 — below both averages, BMI swings fast
+ *   female 150–164 — around the female average
+ *   male   165–179 — around the male average
+ *   tall   ≥ 180 — above the male average
+ */
+export type HeightBand = "short" | "female" | "male" | "tall";
+
+export function heightBand(heightCm: number): HeightBand {
+  if (heightCm < 150) return "short";
+  if (heightCm < 165) return "female";
+  if (heightCm < 180) return "male";
+  return "tall";
+}
+
+/** BMI change for a weight change of `kg` at this height (1 kg at 170 cm ≈ 0.35). */
+export function bmiPerKg(heightCm: number, kg = 1): number {
+  return kg / heightM2(heightCm);
+}
+
+/** Width of the normal range on the 0.1 kg grid (170 cm: 66.4 − 53.5 = 12.9 kg). */
+export function normalRangeWidth(heightCm: number): number {
+  const { min, max } = normalWeightRange(heightCm);
+  return round1(max - min);
+}
+
 /** Heights (cm) that get their own landing page: /bmi/<height>/ — 140 to 200, every 1 cm. */
 export const BMI_PAGE_HEIGHTS: number[] = Array.from({ length: 61 }, (_, i) => 140 + i);
 

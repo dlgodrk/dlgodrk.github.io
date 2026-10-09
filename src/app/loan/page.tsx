@@ -29,6 +29,11 @@ const gapLong = koreanWon(Math.round(exGap.longMonth / 100) * 100);
 const gapFeb = koreanWon(Math.round(exGap.february / 100) * 100);
 
 const checked = parseYMD(RULES_CHECKED_AT);
+/**
+ * 스트레스 DSR 표를 확인한 날. 은행연합회 2026년 하반기 운영방안(2026-06-30 발표, 2026-07-01 ~ 12-31 적용)과
+ * 소비자포털 스트레스 금리 공시 기준. 표 내용을 다시 확인하면 이 날짜도 함께 바꾼다 (공용 RULES_CHECKED_AT과 따로 둔다).
+ */
+const DSR_AS_OF = "2026년 10월 9일";
 const BASIS = `월 이율 = 연 이율 ÷ 12 · 원 미만 반올림 · 대출 제도 ${checked ? formatKoreanDate(checked, false) : RULES_CHECKED_AT} 확인`;
 
 export const metadata: Metadata = pageMetadata({
@@ -69,7 +74,7 @@ const FAQ: FaqItem[] = [
   },
   {
     q: "스트레스 DSR이 적용되면 내는 이자도 오르나요?",
-    a: "아니요. 스트레스 금리는 대출 한도를 정할 때만 더하는 가상의 금리라 실제로 내는 이자에는 붙지 않습니다. 다만 같은 소득이라도 빌릴 수 있는 금액이 줄어듭니다.",
+    a: "아니요. 스트레스 금리는 대출 한도를 정할 때만 더하는 가상의 금리라 실제로 내는 이자에는 붙지 않습니다. 다만 같은 소득이라도 빌릴 수 있는 금액이 줄어듭니다. 2026년 하반기 은행권 기준으로 수도권·규제지역 주택담보대출은 3.0%, 지방 주택담보대출은 0.75%(2단계 유지, 2026년 12월 31일까지)를 더해 한도를 계산합니다.",
   },
 ];
 
@@ -80,7 +85,7 @@ export default function LoanPage() {
     <ToolShell
       slug="loan"
       h1="대출 이자 계산기 (월 상환액·총 이자)"
-      lead="대출금액, 연 이자율, 기간을 넣으면 매달 갚을 돈과 총 이자를 바로 계산해 드려요. 원리금균등, 원금균등, 만기일시 상환을 한눈에 비교할 수 있어요."
+      lead={`1억원을 연 4%로 30년 동안 원리금균등으로 갚으면 매달 ${formatWon(exEq.firstPayment)}, 총 이자는 ${koreanWon(exEq.totalInterest)}입니다. 대출금액, 금리, 기간을 넣으면 원리금균등·원금균등·만기일시 상환액을 바로 비교해 드려요.`}
       basis={BASIS}
       calculator={<LoanCalculator />}
       faq={FAQ}
@@ -213,13 +218,50 @@ export default function LoanPage() {
         </li>
       </ul>
 
-      <h2>대출 한도와 스트레스 DSR</h2>
+      <h2>대출 한도와 스트레스 DSR ({DSR_AS_OF} 기준)</h2>
       <p>
         DSR(총부채원리금상환비율)은 1년 동안 갚는 모든 대출의 원리금이 연소득에서 차지하는 비율로, 금융회사는 이 비율로 대출
-        한도를 정합니다. 2025년 7월 1일부터 3단계 스트레스 DSR이 시행되어 주택담보대출과 기타대출, 잔액 1억원을 넘는
-        신용대출에 스트레스 금리(기본 1.5%)를 더해 DSR을 계산합니다. 2025년 10월 16일부터는 수도권·규제지역 주택담보대출의
-        스트레스 금리 하한이 3%로 올랐습니다. 스트레스 금리는 한도 계산에만 쓰이고 실제로 내는 이자에는 붙지 않습니다. 금리
-        유형과 지역에 따라 적용 수준이 달라 정확한 한도는 금융회사에서 확인해야 합니다(
+        한도를 정합니다. 스트레스 DSR은 앞으로 금리가 오를 수 있다고 보고 실제 금리에 스트레스 금리를 더해 DSR을 계산하는
+        제도로, 2025년 7월 1일 3단계가 시행됐습니다. 다만 지역에 따라 적용 수준이 다릅니다. 은행권이 2026년 7월 1일부터 12월
+        31일까지 적용하는 기준은 다음과 같습니다.
+      </p>
+      <div className="table-wrap">
+        <table className="data-table">
+          <caption>은행권 스트레스 금리 · 변동금리 기준 · 2026년 하반기</caption>
+          <thead>
+            <tr>
+              <th scope="col">대출</th>
+              <th scope="col">스트레스 금리</th>
+              <th scope="col">내용</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>수도권·규제지역 주택담보대출</td>
+              <td>3.0%</td>
+              <td>3단계. 2025년 10월 16일부터 하한이 1.5%에서 3%로 올랐습니다.</td>
+            </tr>
+            <tr>
+              <td>지방(비규제지역) 주택담보대출</td>
+              <td>0.75%</td>
+              <td>2단계 기준(1.5%의 50%)을 2026년 12월 31일까지 유지합니다.</td>
+            </tr>
+            <tr>
+              <td>신용대출</td>
+              <td>1.5%</td>
+              <td>기존과 새 신용대출 잔액 합계가 1억원을 넘을 때만 적용합니다.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p>
+        혼합형·주기형 상품은 고정금리 기간이 길수록 스트레스 금리를 덜 반영합니다. 스트레스 금리는 한도 계산에만 쓰이고 실제로
+        내는 이자에는 붙지 않습니다. 매년 6월과 12월에 다음 6개월 동안 쓸 값을 다시 정하므로 2027년 1월부터는 달라질 수 있고,
+        정확한 한도는 금융회사에서 확인해야 합니다(
+        <a href="https://portal.kfb.or.kr/compare/stress_loan.php" target="_blank" rel="noopener noreferrer">
+          은행연합회 스트레스 금리 공시
+        </a>
+        ,{" "}
         <a href="https://www.fsc.go.kr/no010101/84617" target="_blank" rel="noopener noreferrer">
           금융위원회 3단계 스트레스 DSR 시행방안
         </a>

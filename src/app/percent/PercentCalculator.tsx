@@ -258,6 +258,7 @@ function changeParts(s: State, set: Patch): Parts {
         max={MAX_VALUE}
         allowNegative
         placeholder="예: 25000"
+        hint="적자처럼 음수인 값은 숫자를 넣고 +/− 버튼을 누르면 돼요."
       />
       <DecimalField
         key="cb"

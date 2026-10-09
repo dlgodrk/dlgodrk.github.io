@@ -1,7 +1,10 @@
 import Link from "next/link";
 import { CATEGORIES, TOOLS } from "@/lib/tools";
-import { RULE_YEAR } from "@/lib/site";
+import { RULES_CHECKED_AT } from "@/lib/site";
 import { SalaryMini } from "./salary/SalaryMini";
+
+/** Fixed basis month of the static home-page copy (the month the rules were last checked). */
+const [checkedYear, checkedMonth] = RULES_CHECKED_AT.split("-").map(Number);
 
 /** Long-tail pages people search for most, linked from the home page. */
 const POPULAR: { href: string; label: string }[] = [
@@ -36,10 +39,11 @@ export default function HomePage() {
             생활 계산기 모음
           </h1>
           <p className="mt-4 text-[1.0625rem] leading-relaxed text-ink-soft">
-            {RULE_YEAR}년 요율과 법령으로 계산합니다. 회원가입이나 앱 설치 없이 바로 쓰고, 결과는 링크로 공유할 수 있어요.
+            {checkedYear}년 {checkedMonth}월 기준 법령과 요율로 계산해요. 회원가입이나 앱 설치 없이 바로 쓰고, 결과는 링크로
+            공유할 수 있어요.
           </p>
           <p className="mt-3 text-sm text-muted">
-            연봉 실수령액은 국세청 간이세액표와 4대보험 공식 모의계산 결과에 맞춰 검증했습니다.
+            연봉 실수령액은 국세청 간이세액표와 4대보험 공식 모의계산 결과에 맞춰 검증했어요.
           </p>
         </header>
         <SalaryMini />

@@ -11,8 +11,10 @@ import {
   salaryForManwon,
   taxBracketLabel,
 } from "@/lib/calc/salary-ui";
+import { MONTHLY_PAGE_MANWON, monthlyPagePath, salaryForMonthlyManwon } from "@/lib/calc/salary-monthly";
 import { SalaryCalculator } from "./SalaryCalculator";
 import { SalaryLinks } from "./SalaryLinks";
+import { SalaryMonthlyLinks } from "./SalaryMonthlyLinks";
 import { CELL_SUB, PENSION_CAP, PENSION_CAP_ANNUAL_MANWON, SALARY_BASIS, SOURCES, WRAP_CELL } from "./sources";
 
 // Worked examples, computed with the same engine as the calculator (2026년 10월분, 비과세 20만원, 1인).
@@ -36,7 +38,9 @@ const RULE_ROWS = [
 ];
 const RULE_CELL = { ...WRAP_CELL, textAlign: "left" } as const;
 
-const TABLE_MANWON =Array.from({ length: (10_000 - 2_000) / 500 + 1 }, (_, i) => 2_000 + i * 500);
+const TABLE_MANWON = Array.from({ length: (10_000 - 2_000) / 500 + 1 }, (_, i) => 2_000 + i * 500);
+/** 세전 월급 rows (만원) of the main-page 월급 table; each links to its /salary/monthly/<만원>/ page. */
+const MONTHLY_TABLE_MANWON = [200, 250, 300, 350, 400, 450, 500, 550, 600, 700, 800, 900, 1_000];
 
 export const metadata: Metadata = pageMetadata({
   title: "연봉 실수령액 계산기 2026 - 4대보험·세금 뗀 월급",
@@ -50,7 +54,7 @@ export const metadata: Metadata = pageMetadata({
 const FAQ: FaqItem[] = [
   {
     q: "연봉 4,000만원이면 실수령액은 얼마인가요?",
-    a: `2026년 10월 급여 기준으로 월 ${formatWon(EX.monthlyNet)}입니다. 세전 월급 ${formatWon(EX.monthlyGross)}에서 4대보험 ${formatWon(
+    a: `2026년 10월분 급여 기준으로 월 ${formatWon(EX.monthlyNet)}입니다. 세전 월급 ${formatWon(EX.monthlyGross)}에서 4대보험 ${formatWon(
       EX.insurance.total,
     )}과 소득세·지방소득세 ${formatWon(EX.tax.total)}을 뺀 금액이며, 비과세 식대 20만원과 본인 1명을 가정했습니다. 1년으로 환산하면 약 ${manwonFloorLabel(EX.annualNet)}입니다.`,
   },
@@ -76,21 +80,24 @@ const FAQ: FaqItem[] = [
   },
   {
     q: "2027년에는 실수령액이 어떻게 달라지나요?",
-    a: `국민연금 보험료율은 2025년 개정된 국민연금법에 따라 2027년 10%(근로자 5%)로 오를 예정입니다. 다른 조건이 같다면 연봉 4,000만원의 국민연금 공제는 월 ${formatWon(
+    a: `국민연금 보험료율은 2025년 개정된 국민연금법에 따라 2027년 10%(근로자 5.0%)로 오릅니다. 다른 조건이 같다면 연봉 4,000만원의 국민연금 공제는 월 ${formatWon(
       EX.insurance.pension,
     )}에서 ${formatWon(EX_PENSION_2027)}으로 ${formatWon(
       EX_PENSION_2027 - EX.insurance.pension,
-    )} 늘어납니다. 2027년 건강보험료율은 7.19%로 동결한다고 발표됐고, 고용보험료율 인상안은 2026년 10월 현재 확정되지 않았습니다.`,
+    )} 늘어납니다. 2027년 건강보험료율은 2026년 9월 건강보험정책심의위원회에서 7.19% 동결로 의결됐고(고시 전), 장기요양·고용보험 요율과 간이세액표는 2026년 10월 현재 정해지지 않았습니다.`,
   },
 ];
 
 export default function SalaryPage() {
   const rows = TABLE_MANWON.map((m) => ({ m, r: salaryForManwon(m) }));
+  const monthlyRows = MONTHLY_TABLE_MANWON.map((m) => ({ m, r: salaryForMonthlyManwon(m) }));
   return (
     <ToolShell
       slug="salary"
       h1="연봉 실수령액 계산기 (2026년)"
-      lead="연봉이나 월급을 넣으면 2026년 4대보험과 소득세를 뺀 월 실수령액을 바로 계산해 드려요. 비과세 식대, 부양가족 수, 퇴직금 포함 여부까지 반영해요."
+      lead={`2026년 연봉 4,000만원의 월 실수령액은 ${formatWon(
+        EX.monthlyNet,
+      )}(10월분 급여, 식대 20만원 비과세·본인 1명 기준)이에요. 연봉이나 월급을 넣으면 비과세, 부양가족 수, 퇴직금 포함 여부까지 반영해 4대보험과 소득세를 뺀 실수령액을 바로 계산해 드려요.`}
       basis={SALARY_BASIS}
       calculator={<SalaryCalculator />}
       faq={FAQ}
@@ -225,6 +232,42 @@ export default function SalaryPage() {
         {formatNumber(PENSION_CAP / 10_000)}만원)에 걸려 월 {formatWon(CAP_PENSION)}으로 더 늘지 않습니다.
       </p>
 
+      <h2>2026 월급 실수령액 표 (세전 200만~1,000만원)</h2>
+      <p>
+        연봉 대신 세전 월급으로 찾는 경우를 위한 표입니다. 월급에 비과세 식대 20만원이 들어 있고 본인 1명, 2026년 10월분 급여 기준입니다.
+        월급을 누르면 비과세 여부와 부양가족에 따른 실수령액, 연봉 환산, 2027년 예상액을 볼 수 있습니다.
+      </p>
+      <div className="table-wrap">
+        <table className="data-table">
+          <thead>
+            <tr>
+              <th scope="col">세전 월급</th>
+              <th scope="col">4대보험</th>
+              <th scope="col">소득세·지방세</th>
+              <th scope="col">월 실수령액</th>
+            </tr>
+          </thead>
+          <tbody>
+            {monthlyRows.map(({ m, r }) => (
+              <tr key={m}>
+                <td>
+                  <Link href={monthlyPagePath(m)}>{manwonLabel(m)}</Link>
+                </td>
+                <td>{formatNumber(r.insurance.total)}</td>
+                <td>{formatNumber(r.tax.total)}</td>
+                <td>
+                  <strong>{formatNumber(r.monthlyNet)}</strong>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="note">
+        단위: 원. 세전 월급 {formatNumber(MONTHLY_PAGE_MANWON[0])}만~600만원은 10만원, 그 위로 1,000만원까지는 50만원 간격으로 따로 정리한
+        페이지가 있습니다.
+      </p>
+
       <h2>간이세액표와 연말정산</h2>
       <p>
         매달 떼는 소득세는 소득세법 시행령에 붙은 <strong>근로소득 간이세액표</strong>에서 월 과세 급여와 공제대상가족 수로 찾은
@@ -280,6 +323,9 @@ export default function SalaryPage() {
 
       <h2>연봉별 실수령액 바로 보기</h2>
       <SalaryLinks />
+
+      <h2>월급별 실수령액 바로 보기</h2>
+      <SalaryMonthlyLinks />
     </ToolShell>
   );
 }

@@ -8,10 +8,13 @@ import { formatNumber, formatWon } from "@/lib/format";
 import {
   DEFAULT_SERVICE_ID,
   getServiceType,
+  hasReserveDuty,
   isBeforeShorteningDone,
   isStartInRange,
   promotionDates,
   rankOn,
+  reserveSpan,
+  reserveYearIn,
   SERVICE_TYPES,
   serviceEndDate,
   serviceProgress,
@@ -111,6 +114,7 @@ function DischargeStatement({ start, type, today }: { start: YMD; type: ServiceT
         <StatementRow label="남은 일수" value={`${formatNumber(p.remainingDays)}일`} emphasis />
       </StatementSection>
       {isSoldier ? <PromotionSection start={start} today={today} end={end} /> : null}
+      {hasReserveDuty(type.kind) ? <ReserveSection end={end} today={today} endWord={type.endWord} /> : null}
       <StatementFootnote>
         {type.endWord}일은 {type.startLabel}부터 {type.months}개월이 되는 날의 전날이에요.{" "}
         {isSoldier
@@ -163,6 +167,27 @@ function ProgressBar({ progress, pct }: { progress: ServiceProgress; pct: string
         {formatNumber(progress.servedDays)}일 / {formatNumber(progress.totalDays)}일
       </p>
     </div>
+  );
+}
+
+/** 예비군 편성 (예비군법 제3조): 1년차 = the year after the end date, ends on 12월 31일 of the 8th year. */
+function ReserveSection({ end, today, endWord }: { end: YMD; today: YMD; endWord: string }) {
+  const span = reserveSpan(end);
+  const finished = compareYMD(today, end) > 0;
+  const n = reserveYearIn(end, today.y);
+  return (
+    <StatementSection title={`${endWord} 후 예비군`}>
+      <StatementRow label="예비군 1년차" value={`${span.firstYear}년`} note={`${endWord}한 해는 빼고 다음 해부터 세어요`} />
+      <StatementRow label="예비군 끝 (8년차)" value={formatKoreanDate(span.endDate, false)} />
+      {finished ? (
+        <StatementRow
+          label={`올해 연차 (${today.y}년)`}
+          value={n === null ? "예비군 기간 끝" : n === 0 ? "연차 전" : `${n}년차`}
+          note={n === 0 ? `${span.firstYear}년부터 1년차예요` : undefined}
+          emphasis
+        />
+      ) : null}
+    </StatementSection>
   );
 }
 

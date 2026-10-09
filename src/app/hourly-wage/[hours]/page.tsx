@@ -13,11 +13,21 @@ import {
   MIN_WAGE_2026,
   MIN_WAGE_2027,
   payForWeeklyHours,
+  RATE_2027_NOTE,
   scheduleForHours,
   shownHoursAreExact,
 } from "@/lib/calc/hourly-wage";
 import { HourlyWageCalculator } from "../HourlyWageCalculator";
-import { hourlyBasis, HoursLinkGrid, WageTable, WeeklyHoursTable, YearCompareTable } from "../tables";
+import {
+  hourlyBasis,
+  HoursLinkGrid,
+  NovemberNote,
+  STATIC_MONTH_LABEL,
+  WageLinkGrid,
+  WageTable,
+  WeeklyHoursTable,
+  YearCompareTable,
+} from "../tables";
 
 // Only the listed weekly hours exist; anything else is a 404 (required for static export).
 export const dynamicParams = false;
@@ -87,6 +97,8 @@ export default async function HourlyWageHoursPage({ params }: Props) {
   if (h === null) notFound();
   const a = payForWeeklyHours(h, MIN_WAGE_2026);
   const b = payForWeeklyHours(h, MIN_WAGE_2027);
+  /** 2027 net pay (예상) — same figure as the 2026·2027 table and the 최저임금 계산기. */
+  const b27 = payForWeeklyHours(h, MIN_WAGE_2027, 2027);
   const { daily, days } = scheduleForHours(h);
   const eligible = h >= JUHYU_MIN_WEEKLY_HOURS;
   const ins = insuredDeductions(a.monthlyGross, h);
@@ -113,7 +125,7 @@ export default async function HourlyWageHoursPage({ params }: Props) {
     {
       q: `주 ${h}시간 알바도 4대보험에 가입하나요?`,
       a: eligible
-        ? `주 15시간(월 60시간) 이상이라 국민연금, 건강보험, 고용보험 가입 대상입니다. 2026년 요율로 월 ${formatNumber(ins.pension + ins.health + ins.longTermCare + ins.employment)}원 정도를 내고, 소득세까지 떼면 실수령액은 ${formatNumber(a.netInsured)}원입니다.`
+        ? `주 15시간(월 60시간) 이상이라 국민연금, 건강보험, 고용보험 가입 대상입니다. 2026년 최저시급이면 ${STATIC_MONTH_LABEL} 요율로 월 ${formatNumber(ins.pension + ins.health + ins.longTermCare + ins.employment)}원 정도를 내고, 소득세까지 떼면 실수령액은 ${formatNumber(a.netInsured)}원입니다. 2027년에는 국민연금 근로자 부담이 5.0%로 올라 실수령액이 ${formatNumber(b27.netInsured)}원(예상)입니다.`
         : `주 15시간 미만 초단시간 근로자라 국민연금과 건강보험 직장가입 대상이 아닙니다. 고용보험은 3개월 이상 계속 일하면 가입하며 월 ${formatNumber(ins.employment)}원 정도입니다.`,
     },
     {
@@ -191,17 +203,20 @@ export default async function HourlyWageHoursPage({ params }: Props) {
       <h2>2026·2027 최저시급 기준 주 {h}시간 주급·월급</h2>
       <YearCompareTable hours={h} />
       <p className="note">
-        공제 후 금액은 2026년 4대보험 요율과 간이세액표(본인 1명)를 적용했습니다.
+        공제 후 금액은 {STATIC_MONTH_LABEL} 4대보험 요율과 간이세액표(본인 1명)를 적용했습니다.
         {eligible
-          ? " 2027년 열은 법으로 정해진 국민연금 인상(근로자 4.75% → 5.0%)만 반영하고, 아직 확정되지 않은 건강·장기요양·고용보험 요율과 간이세액표는 2026년과 같다고 가정했습니다."
-          : " 초단시간이라 4대보험은 고용보험만 반영했고, 2027년 열도 2026년 고용보험 요율과 같다고 가정했습니다."}
+          ? ` ${RATE_2027_NOTE}`
+          : " 초단시간이라 4대보험은 고용보험만 반영했고, 2027년 고용보험 요율은 아직 정해지지 않아 2026년 값(0.9%)으로 가정한 예상치입니다."}
       </p>
+      <NovemberNote rows={[{ label: "2026년 열", hours: h, wage: MIN_WAGE_2026 }]} />
 
       <h2>시급별 주 {h}시간 월급</h2>
       <p>
         최저시급보다 높은 시급을 받는다면 아래 표에서 주 {h}시간 기준 주급과 월급을 바로 확인할 수 있습니다. 표의 월급은 월{" "}
         {approx(a) ? `${exactHoursLabel(a.monthlyPayHours)}시간(약 ${hoursLabel(a.monthlyHours)}시간)` : `${hoursLabel(a.monthlyHours)}시간`}에
-        시급을 곱해 원 미만을 반올림한 금액입니다.
+        시급을 곱해 원 미만을 반올림한 금액입니다. 4대보험 공제 후 금액은 {STATIC_MONTH_LABEL} 요율 기준이고, 2027년
+        최저시급인 10,700원 행만 위 표의 2027년 열과 같은 2027년 예상 요율로 계산했습니다. 시급을 누르면 그 시급의 근무시간별
+        월급을 볼 수 있습니다.
       </p>
       <WageTable hours={h} />
 
@@ -214,6 +229,9 @@ export default async function HourlyWageHoursPage({ params }: Props) {
 
       <h2>다른 근무시간 월급 보기</h2>
       <HoursLinkGrid current={h} />
+
+      <h2>시급별 월급 보기</h2>
+      <WageLinkGrid />
     </ToolShell>
   );
 }

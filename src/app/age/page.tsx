@@ -76,7 +76,7 @@ export default function AgePage() {
     <ToolShell
       slug="age"
       h1="만 나이 계산기"
-      lead="2023년 6월 28일부터 법과 계약서의 나이는 만 나이로 통일됐습니다. 생년월일을 넣으면 오늘 기준 만 나이와 연 나이, 띠, 다음 생일까지 남은 날을 바로 알려 드립니다."
+      lead="2023년 6월 28일부터 법과 계약서의 나이는 만 나이로 통일됐어요. 생년월일을 넣으면 오늘 기준 만 나이와 연 나이, 띠, 다음 생일까지 남은 날을 바로 알려 드려요."
       basis={`${RULE_YEAR}년 기준 · 민법 제158조(만 나이)·제160조(기간 계산) · ${CHECKED} 확인`}
       calculator={<AgeCalculator />}
       faq={FAQ}

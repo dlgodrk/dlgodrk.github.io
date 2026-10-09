@@ -20,6 +20,7 @@ import {
   type Bracket,
   type Deal,
 } from "@/lib/calc/brokerage-fee";
+import { findAcqPage, totalFor } from "@/lib/calc/acquisition-tax";
 import { BrokerageFeeCalculator } from "./BrokerageFeeCalculator";
 
 export const metadata: Metadata = pageMetadata({
@@ -147,12 +148,15 @@ export default function BrokerageFeePage() {
   // 한도액이 적용되는 월세 예시: 8,000만원 × 0.4% = 32만원 → 한도 30만원
   const ex3 = computeBrokerageFee({ target: "house", deal: "wolse", amount: 5_000 * MAN, monthlyRent: 30 * MAN })!;
   const sale5 = maxFeeFor("house", "sale", 5 * 100_000_000);
+  const lease3 = maxFeeFor("house", "jeonse", 3 * 100_000_000);
+  const acq5 = totalFor(5 * 100_000_000, { houses: 1, regulated: false, over85: false });
+  const acq5Page = findAcqPage("50000");
 
   return (
     <ToolShell
       slug="brokerage-fee"
       h1="부동산 중개수수료(복비) 계산기"
-      lead="매매가나 보증금을 넣으면 법정 상한요율로 중개보수 상한액을 바로 계산해 드려요. 상한액은 받을 수 있는 최대치이고, 실제 복비는 그 안에서 중개사와 협의해 정해요."
+      lead={`5억 아파트 매매 복비 상한은 ${koreanWon(sale5)}(0.4%), 전세 3억은 ${koreanWon(lease3)}(0.3%)이며 실제 복비는 이 안에서 중개사와 협의해 정합니다. 매매가나 보증금, 월세를 넣으면 법정 상한요율로 중개보수 상한액을 바로 계산해 드려요.`}
       basis="공인중개사법 시행규칙 제20조(2026. 8. 28. 시행)·별표 1(2021. 10. 19. 개정)·별표 2, 서울·경기 주택 중개보수 조례 기준 · 2026년 10월 9일 확인"
       calculator={<BrokerageFeeCalculator />}
       faq={FAQ}
@@ -168,6 +172,9 @@ export default function BrokerageFeePage() {
       <p>
         예를 들어 5억원 아파트를 매매하면 5억원 × 0.4% = <strong>{koreanWon(sale5)}</strong>이 상한입니다. 매도인과 매수인이
         각각 최대 {koreanWon(sale5)}을 내고, 일반과세자 중개사무소라면 부가세 10%를 더해 {koreanWon(withVat(sale5))}이 됩니다.
+        매수인은 복비와 별도로 취득세도 내는데, 같은 집을 1주택(전용 85㎡ 이하)으로 사면 지방교육세를 합쳐{" "}
+        {koreanWon(acq5)}입니다(
+        <Link href={acq5Page !== null ? `/acquisition-tax/${acq5Page}/` : "/acquisition-tax/"}>5억 아파트 취득세</Link>).
       </p>
 
       <h2>주택 매매·교환 중개보수 요율표</h2>
@@ -246,6 +253,9 @@ export default function BrokerageFeePage() {
       </ul>
       <p>
         70배 규정은 소액 월세 세입자의 부담을 덜기 위한 것입니다. 같은 환산식은 오피스텔과 상가 월세에도 똑같이 적용됩니다.
+        이 ‘월세 × 100’은 복비를 계산하기 위한 환산일 뿐이고, 계약 중에 전세를 월세로 바꿀 때 받을 수 있는 월세 상한은
+        법정 전환율로 따로 정해집니다. 그 금액은 <Link href="/rent-conversion/">전월세 전환율 계산기</Link>로 확인할 수
+        있습니다.
       </p>
 
       <h2>금액별 복비 빠른 표</h2>

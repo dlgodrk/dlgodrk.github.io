@@ -9,7 +9,6 @@ import {
   FAMILY_SCENARIOS,
   floorManwon,
   hourlyFromMonthly,
-  longTermCareMultiplier,
   LTC_ROUNDED_FROM,
   manwonFloorLabel,
   minimumWageGap,
@@ -17,12 +16,14 @@ import {
   pensionLimit,
   raiseEffect,
   salaryForManwon,
-  taxBracketLabel,
+  vsMinimumHourly,
 } from "@/lib/calc/salary-ui";
-import { MINIMUM_WAGE, minimumMonthly } from "@/lib/rates/labor";
+import { monthlyPagePath, monthlyPagesNear } from "@/lib/calc/salary-monthly";
+import { minimumMonthly } from "@/lib/rates/labor";
 import { SalaryCalculator } from "../SalaryCalculator";
+import { SalaryDeductionTable } from "../SalaryDeductionTable";
 import { SalaryLinks } from "../SalaryLinks";
-import { CELL_SUB, PENSION_CAP, PENSION_CAP_ANNUAL_MANWON, WRAP_CELL } from "../sources";
+import { PENSION_CAP, PENSION_CAP_ANNUAL_MANWON } from "../sources";
 
 // Only the listed salaries exist; anything else is a 404 (required for static export).
 export const dynamicParams = false;
@@ -39,7 +40,7 @@ function parse(raw: string): number | null {
 }
 
 const BASIS =
-  "가정: 월 비과세 식대 20만원 · 본인 1명 · 간이세액 100% · 2026년 10월 급여 기준 요율 (2026년 10월 9일 확인)";
+  "가정: 월 비과세 식대 20만원 · 본인 1명 · 간이세액 100% · 2026년 10월분 급여 기준 요율 (2026년 10월 9일 확인)";
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const m = parse((await params).amount);
@@ -56,15 +57,6 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     path: `/salary/${m}/`,
     keywords: [`연봉 ${m}만원 실수령액`, `연봉 ${m} 실수령액`, `연봉 ${label} 월급`, `연봉 ${m} 세후`, "연봉 실수령액 계산기"],
   });
-}
-
-/** "2026년 최저시급 10,320원의 1.62배" or, close to the minimum, the gap in 원. */
-function vsMinimumHourly(hourly: number, year: 2026 | 2027): string {
-  const min = MINIMUM_WAGE[year];
-  const ratio = hourly / min;
-  if (ratio >= 1.2) return `${year}년 최저시급 ${formatWon(min)}의 ${ratio.toFixed(2)}배`;
-  const diff = hourly - min;
-  return `${year}년 최저시급 ${formatWon(min)}보다 ${formatWon(Math.abs(diff))} ${diff >= 0 ? "많은" : "적은"} 수준`;
 }
 
 export default async function SalaryAmountPage({ params }: Props) {
@@ -87,35 +79,13 @@ export default async function SalaryAmountPage({ params }: Props) {
   const keepPct = formatNumber(raise.keepRate * 100, 1);
   // From 2026년 11월분 the 장기요양보험료 ratio is rounded to 13.14%; some salaries change by 10원.
   const r11 = salaryForManwon(m, { payMonth: LTC_ROUNDED_FROM });
-
-  const deductionRows: { label: string; basis: string; amount: number; strong?: boolean; current?: boolean }[] = [
-    {
-      label: "국민연금",
-      basis: `${formatNumber(r.insurance.pensionBase)} × 4.75%${limit === "cap" ? " (상한)" : limit === "floor" ? " (하한)" : ""}`,
-      amount: r.insurance.pension,
-    },
-    { label: "건강보험", basis: `${formatNumber(r.monthlyTaxable)} × 3.595%`, amount: r.insurance.health },
-    {
-      label: "장기요양보험",
-      basis: `${formatNumber(r.insurance.health)} × ${longTermCareMultiplier(DEFAULT_PAY_MONTH)}`,
-      amount: r.insurance.longTermCare,
-    },
-    { label: "고용보험", basis: `${formatNumber(r.monthlyTaxable)} × 0.9%`, amount: r.insurance.employment },
-    { label: "소득세", basis: `간이세액표 ${taxBracketLabel(r.monthlyTaxable)}`, amount: r.tax.incomeTax },
-    { label: "지방소득세", basis: "소득세 × 10%", amount: r.tax.localTax },
-    {
-      label: "공제 합계",
-      basis: `세전 월급의 ${formatNumber(r.deductionRate * 100, 1)}%`,
-      amount: r.deductions,
-      strong: true,
-    },
-    { label: "월 실수령액", basis: `${formatNumber(r.monthlyGross)} − 공제 합계`, amount: r.monthlyNet, current: true },
-  ];
+  // 세전 월급 pages (/salary/monthly/<만원>/) that match or bracket this 연봉's monthly pay.
+  const monthlyLinks = monthlyPagesNear(r.monthlyGross);
 
   const faq: FaqItem[] = [
     {
       q: `연봉 ${label} 실수령액은 얼마인가요?`,
-      a: `2026년 10월 급여 기준으로 월 ${formatWon(r.monthlyNet)}, 1년으로 환산하면 약 ${manwonFloorLabel(r.annualNet)}입니다. 세전 월급 ${formatWon(r.monthlyGross)}에서 국민연금 ${formatWon(r.insurance.pension)}, 건강보험 ${formatWon(
+      a: `2026년 10월분 급여 기준으로 월 ${formatWon(r.monthlyNet)}, 1년으로 환산하면 약 ${manwonFloorLabel(r.annualNet)}입니다. 세전 월급 ${formatWon(r.monthlyGross)}에서 국민연금 ${formatWon(r.insurance.pension)}, 건강보험 ${formatWon(
         r.insurance.health,
       )}, 장기요양보험 ${formatWon(r.insurance.longTermCare)}, 고용보험 ${formatWon(r.insurance.employment)}, 소득세 ${formatWon(
         r.tax.incomeTax,
@@ -162,28 +132,7 @@ export default async function SalaryAmountPage({ params }: Props) {
         {formatWon(r.monthlyTaxable)}이 4대보험과 소득세를 매기는 과세 대상 급여입니다. 퇴직금이 포함된 연봉이라면 13으로 나눈{" "}
         {formatWon(sev.monthlyGross)}이 월급이 되고, 실수령액은 {formatWon(sev.monthlyNet)}으로 줄어듭니다.
       </p>
-      <div className="table-wrap">
-        <table className="data-table">
-          <caption>연봉 {label} 월 공제 내역 (2026년 10월 급여, 본인 1명)</caption>
-          <thead>
-            <tr>
-              <th scope="col">항목 (계산 기준)</th>
-              <th scope="col">월 금액</th>
-            </tr>
-          </thead>
-          <tbody>
-            {deductionRows.map((row) => (
-              <tr key={row.label} className={row.current ? "is-current" : undefined}>
-                <td style={WRAP_CELL}>
-                  {row.strong ? <strong>{row.label}</strong> : row.label}
-                  <span className={CELL_SUB}>{row.basis}</span>
-                </td>
-                <td>{row.strong ? <strong>{formatNumber(row.amount)}</strong> : formatNumber(row.amount)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <SalaryDeductionTable r={r} payMonth={DEFAULT_PAY_MONTH} caption={`연봉 ${label} 월 공제 내역 (2026년 10월분, 본인 1명)`} />
       <p className="note">
         단위: 원. 보험료와 세금은 각각 10원 미만을 버립니다. 장기요양보험료는 2026년 10월분까지 건강보험료 × 0.9448 ÷ 7.19로
         계산하고, 개정 노인장기요양보험법에 따라 11월분부터는 반올림한 13.14%를 곱합니다.{" "}
@@ -309,6 +258,28 @@ export default async function SalaryAmountPage({ params }: Props) {
         단위: 원. 비과세 금액이나 부양가족이 다르면 위 계산기에서 바꿔 볼 수 있습니다. 계산 방법과 2026년 요율은{" "}
         <Link href="/salary/">연봉 실수령액 계산기</Link>에 정리했습니다.
       </p>
+      {monthlyLinks.length > 0 ? (
+        <p>
+          {monthlyLinks.length === 1 ? (
+            <>
+              연봉 {label}은 세전 월급 {manwonLabel(monthlyLinks[0])}과 같습니다. 식대 비과세 여부와 부양가족에 따른 실수령액은{" "}
+              <Link href={monthlyPagePath(monthlyLinks[0])}>월급 {manwonLabel(monthlyLinks[0])} 실수령액</Link>에서 표로 비교할 수
+              있습니다.
+            </>
+          ) : (
+            <>
+              세전 월급 {formatWon(r.monthlyGross)}과 가까운{" "}
+              {monthlyLinks.map((mm, i) => (
+                <span key={mm}>
+                  {i > 0 ? ", " : null}
+                  <Link href={monthlyPagePath(mm)}>월급 {manwonLabel(mm)} 실수령액</Link>
+                </span>
+              ))}{" "}
+              페이지에서 월급 기준으로 비과세·부양가족별 실수령액을 비교할 수 있습니다.
+            </>
+          )}
+        </p>
+      ) : null}
 
       <h2>다른 연봉 실수령액 보기</h2>
       <SalaryLinks current={m} />

@@ -78,7 +78,7 @@ for (const p of paths) {
       const wide = [];
       for (const el of document.querySelectorAll('body *')) {
         const r = el.getBoundingClientRect();
-        if (r.right > vw + 1 && r.width > 0 && !el.closest('.table-wrap') && getComputedStyle(el).position !== 'fixed') {
+        if (r.right > vw + ${Number(process.env.OVER || 1)} && r.width > 0 && (${process.env.ALL ? 'true' : 'false'} || !el.closest('.table-wrap')) && getComputedStyle(el).position !== 'fixed') {
           wide.push((el.tagName.toLowerCase() + '.' + (el.className && el.className.baseVal === undefined ? el.className : '')).slice(0, 80) + ' right=' + Math.round(r.right));
         }
       }

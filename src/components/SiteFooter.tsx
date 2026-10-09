@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { CATEGORIES, TOOLS } from "@/lib/tools";
-import { RULES_CHECKED_AT, SITE_NAME } from "@/lib/site";
+import { RULES_CHECKED_AT, SITE_CONTACT, SITE_NAME } from "@/lib/site";
 
 export function SiteFooter() {
   return (
@@ -34,6 +34,9 @@ export function SiteFooter() {
             <Link href="/privacy/" className="hover:text-ink">
               개인정보처리방침
             </Link>
+            <a href={SITE_CONTACT.url} className="hover:text-ink">
+              {SITE_CONTACT.label} ({SITE_CONTACT.channel})
+            </a>
             <span>© {new Date().getFullYear()} {SITE_NAME}</span>
           </p>
         </div>

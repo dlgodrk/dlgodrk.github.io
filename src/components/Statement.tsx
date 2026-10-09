@@ -1,4 +1,14 @@
-import type { ReactNode } from "react";
+import { isValidElement, type CSSProperties, type ReactNode } from "react";
+import { longestRunEm } from "@/lib/format";
+
+/** Plain text inside a ReactNode (strings, numbers and element children), for sizing only. */
+function textOf(node: ReactNode): string {
+  if (node == null || typeof node === "boolean") return "";
+  if (typeof node === "string" || typeof node === "number" || typeof node === "bigint") return String(node);
+  if (Array.isArray(node)) return node.map(textOf).join("");
+  if (isValidElement<{ children?: ReactNode }>(node)) return textOf(node.props.children);
+  return "";
+}
 
 /**
  * The site's signature result view: a printed statement (명세서) with line items,
@@ -30,31 +40,47 @@ export function Statement({
         <h2 className="statement-title">{title}</h2>
         {caption ? <p className="statement-caption">{caption}</p> : null}
       </header>
-      <div className="statement-body" aria-live="polite">
-        {children}
-      </div>
+      {/* Not a live region: only the hero figure is announced (see StatementHero), so typing
+          in a field does not queue every changed row for screen-reader users. */}
+      <div className="statement-body">{children}</div>
     </section>
   );
 }
 
-/** The headline figure with an optional red seal (도장). Use once per statement. */
+/**
+ * The headline figure with an optional red seal (도장). Use once per statement.
+ * It is a polite, atomic live region: when the answer changes, screen readers read the
+ * label, value and sub line together. Pass `live={false}` for a second, non-primary hero.
+ */
 export function StatementHero({
   label,
   value,
   sub,
   stamp,
+  live = true,
 }: {
   label: string;
   value: ReactNode;
   sub?: ReactNode;
   /** 2–3 Korean characters shown inside the red seal, e.g. "실수령" */
   stamp?: string;
+  /** Announce changes to screen readers (default true). */
+  live?: boolean;
 }) {
+  // Width hint for globals.css: long figures (e.g. 14,512,345,678원) shrink to fit a 360px phone.
+  const em = longestRunEm(textOf(value));
+  const fit = em > 0 ? ({ "--hero-em": String(em) } as CSSProperties) : undefined;
   return (
-    <div className="statement-hero">
-      <div className="min-w-0">
+    <div
+      className={stamp ? "statement-hero has-seal" : "statement-hero"}
+      aria-live={live ? "polite" : undefined}
+      aria-atomic={live ? true : undefined}
+    >
+      <div className="statement-hero-main">
         <p className="statement-hero-label">{label}</p>
-        <p className="statement-hero-value tabular">{value}</p>
+        <p className="statement-hero-value tabular" style={fit}>
+          {value}
+        </p>
         {sub ? <p className="statement-hero-sub tabular">{sub}</p> : null}
       </div>
       {stamp ? (

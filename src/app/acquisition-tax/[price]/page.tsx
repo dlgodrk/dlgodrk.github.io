@@ -3,7 +3,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ToolShell } from "@/components/ToolShell";
 import { pageMetadata, type FaqItem } from "@/lib/seo";
-import { formatWon, koreanWon } from "@/lib/format";
+import { formatNumber, formatWon, koreanWon } from "@/lib/format";
+import { BROKERAGE_FEE_PAGES, feeRule, maxFeeFor } from "@/lib/calc/brokerage-fee";
 import {
   ACQ_PAGE_MANWON,
   bracketLabel,
@@ -17,6 +18,7 @@ import {
   HIGH_BRACKET_MIN,
   LOW_BRACKET_MAX,
   MAN,
+  NATIONAL_HOUSING_M2_RURAL,
   neighborsOf,
   priceLabel,
   rateLabel,
@@ -81,6 +83,11 @@ export default async function AcquisitionTaxDetailPage({ params }: Props) {
     firstHomeLimit: FIRST_HOME_LIMIT_SMALL,
   })!;
   const heavy12 = computeAcquisitionTax({ price, houses: 3, regulated: true, over85: false })!;
+
+  // Same-price brokerage-fee page (exact match only) for the 복비 cross-link.
+  const brokeragePage = BROKERAGE_FEE_PAGES.find((x) => x.deal === "sale" && x.amount === price) ?? null;
+  const brokerageRule = feeRule("house", "sale", price);
+  const brokerageFee = maxFeeFor("house", "sale", price);
 
   // Bracket context: what happens just above 6억 or just past this price.
   const nextUp = price + 1_000 * MAN;
@@ -152,6 +159,16 @@ export default async function AcquisitionTaxDetailPage({ params }: Props) {
         중과로 {koreanWon(heavy8.total)}을 내 1주택보다 {koreanWon(heavy8.total - one.total)} 많고, 조정대상지역 3주택이면
         12%가 적용돼 {koreanWon(heavy12.total)}입니다.
       </p>
+      <p>
+        잔금일에는 취득세와 별도로 중개보수(복비)도 냅니다. {label}원 매매의 복비 상한은 매수인 기준{" "}
+        {koreanWon(brokerageFee)}(상한요율 {formatNumber(brokerageRule.rate, 1)}%, 부가세 별도)이고, 자세한 계산은{" "}
+        {brokeragePage ? (
+          <Link href={`/brokerage-fee/${brokeragePage.slug}/`}>{label} 매매 복비</Link>
+        ) : (
+          <Link href="/brokerage-fee/">복비 계산기</Link>
+        )}
+        에서 볼 수 있습니다.
+      </p>
 
       <h2>{label} 아파트 주택 수·지역별 취득세</h2>
       <div className="table-wrap">
@@ -183,7 +200,8 @@ export default async function AcquisitionTaxDetailPage({ params }: Props) {
       </div>
       <p className="note">
         주택 수는 이번에 사는 집을 포함한 세대 전체 기준이고, 지역은 새로 사는 집의 위치로 판단합니다. 조정대상지역
-        2주택이라도 일시적 2주택이면 1주택과 같은 세금을 냅니다.
+        2주택이라도 일시적 2주택이면 1주택과 같은 세금을 냅니다. 85㎡는 농어촌특별세가 붙지 않는 국민주택규모 기준이며,
+        수도권 밖 도시지역이 아닌 읍·면은 {NATIONAL_HOUSING_M2_RURAL}㎡까지 ‘85㎡ 이하’ 열을 보면 됩니다.
       </p>
 
       <h2>{label} 아파트 생애최초 감면 적용 예</h2>

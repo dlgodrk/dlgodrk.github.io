@@ -70,7 +70,7 @@ export default function SavingsPage() {
     <ToolShell
       slug="savings"
       h1="적금 이자 계산기 (세후 만기 수령액)"
-      lead="월 납입액과 기간, 금리를 넣으면 이자과세 15.4%를 뗀 적금 만기 수령액을 바로 계산해 드려요. 단리·월복리, 세금우대·비과세도 비교할 수 있어요."
+      lead={`월 50만원을 연 4% 단리 적금에 1년 넣으면 세전 이자 ${formatNumber(ex.interest)}원에서 15.4%를 떼고 세후 ${formatNumber(ex.afterTaxInterest)}원, 만기에 ${formatWon(ex.maturity)}을 받습니다. 월 납입액과 기간, 금리를 넣으면 단리·월복리, 조합 예탁금·비과세 세금까지 바로 계산해 드려요.`}
       basis={`${RULE_YEAR}년 세율 기준 (이자소득세 14% + 지방소득세 1.4%) · 2026년 10월 9일 확인`}
       calculator={<SavingsCalculator />}
       faq={FAQ}

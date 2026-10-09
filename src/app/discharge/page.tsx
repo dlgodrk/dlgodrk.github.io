@@ -9,6 +9,7 @@ import {
   formatDotDate,
   parseMonthSlug,
   promotionDates,
+  reserveSpan,
   SAVINGS_MONTHLY_CAP,
   SERVICE_TYPES,
   serviceEndDate,
@@ -56,13 +57,14 @@ export default function DischargePage() {
   const example = { y: 2025, m: 6, d: 2 };
   const exampleEnd = serviceEndDate(example, 18);
   const promo = promotionDates(example);
+  const reserve = reserveSpan(exampleEnd);
   const years = Array.from(new Set(DISCHARGE_PAGE_MONTHS.map((s) => s.slice(0, 4))));
 
   return (
     <ToolShell
       slug="discharge"
       h1="전역일 계산기 (2026 군별 복무기간)"
-      lead="입대일과 복무 형태를 고르면 전역일, 남은 날, 복무율, 진급 예정일을 바로 계산해 드려요."
+      lead="2026년 복무기간은 육군·해병대 18개월, 해군 20개월, 공군 21개월, 사회복무요원 21개월이에요. 입대일과 복무 형태를 고르면 전역일, 남은 날, 복무율, 진급 예정일과 전역 후 예비군 연차까지 바로 계산해 드려요."
       basis="병무청 복무기간·2026년 병 봉급 기준 · 2026년 10월 9일 확인"
       calculator={<DischargeCalculator />}
       faq={FAQ}
@@ -222,6 +224,16 @@ export default function DischargePage() {
         </li>
       </ul>
 
+      <h2>전역 후 예비군 연차</h2>
+      <p>
+        예비군법 제3조에 따라 현역병·상근예비역과 사회복무요원은 복무를 마친 다음 날부터 8년이 되는 해의 12월 31일까지
+        예비군에 편성됩니다. 연차는 해 단위로 세어 전역한 해는 넣지 않고 다음 해가 1년차입니다. 예를 들어{" "}
+        {formatKoreanDate(exampleEnd, false)}에 전역하는 육군은 {reserve.firstYear}년이 1년차, {reserve.lastYear}년이 8년차이고{" "}
+        {formatKoreanDate(reserve.endDate, false)}에 예비군이 끝납니다. 현역병 출신은 보통 1~4년차에 동원훈련 대상이 되고,
+        5~6년차에는 거주지 예비군 훈련장에서 기본훈련과 작계훈련을 받습니다. 연차별 훈련 종류와 시간은 해마다 국방부 예비군
+        훈련 계획으로 정해지므로 소집 통지서로 확인하세요. 위 계산기는 전역일과 함께 예비군 1년차와 끝나는 날도 보여 줍니다.
+      </p>
+
       <h2>입대 월별 전역일 바로 보기</h2>
       {years.map((y) => (
         <div key={y}>
@@ -269,6 +281,10 @@ export default function DischargePage() {
             민법 제160조
           </a>
           (기간의 만료),{" "}
+          <a href="https://www.law.go.kr/법령/예비군법" target="_blank" rel="noopener noreferrer">
+            예비군법
+          </a>
+          (예비군 편성 기간),{" "}
           <a href="https://www.law.go.kr/법령/공무원보수규정" target="_blank" rel="noopener noreferrer">
             공무원보수규정
           </a>

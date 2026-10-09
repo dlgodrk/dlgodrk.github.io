@@ -13,7 +13,16 @@ import {
 } from "@/components/Statement";
 import { addDays, compareYMD, formatKoreanDate, parseYMD, type YMD } from "@/lib/date";
 import { formatNumber, formatWon, koreanWon } from "@/lib/format";
-import { calcSeverance, SMALL_TAX_EXEMPTION, type SeveranceResult } from "@/lib/calc/severance";
+import {
+  calcSeverance,
+  DATE_MAX,
+  DATE_MAX_YEAR,
+  DATE_MIN,
+  DATE_MIN_YEAR,
+  isDateInRange,
+  SMALL_TAX_EXEMPTION,
+  type SeveranceResult,
+} from "@/lib/calc/severance";
 import { useUrlState } from "@/lib/useUrlState";
 
 type WageMode = "m" | "t";
@@ -68,6 +77,13 @@ export function SeveranceCalculator() {
   let result: ReactNode;
   if (!hire || !retire || !lastWorkDay) {
     result = <CalcNotice>입사일과 퇴직일을 모두 넣으면 퇴직금을 계산해 드려요.</CalcNotice>;
+  } else if (!isDateInRange(hire) || !isDateInRange(retire)) {
+    // A half-typed year ("0202-03-02" while typing 2022) must not be calculated as a real date.
+    result = (
+      <CalcNotice>
+        {!isDateInRange(hire) ? "입사일" : "퇴직일"}은 {DATE_MIN_YEAR}년부터 {DATE_MAX_YEAR}년 사이 날짜로 넣어 주세요.
+      </CalcNotice>
+    );
   } else if (compareYMD(retire, hire) <= 0) {
     result = <CalcNotice>퇴직일은 입사일보다 뒤여야 해요. 날짜를 다시 확인해 주세요.</CalcNotice>;
   } else if (!wageOk) {
@@ -102,15 +118,26 @@ export function SeveranceCalculator() {
     <CalcLayout
       inputs={
         <>
-          <DateField label="입사일" value={s.s} onChange={(v) => set({ s: v })} hint="처음 출근한 날이에요. 수습 기간도 재직 기간에 들어가요." />
+          <DateField
+            label="입사일"
+            value={s.s}
+            onChange={(v) => set({ s: v })}
+            min={DATE_MIN}
+            max={DATE_MAX}
+            hint="처음 출근한 날이에요. 수습 기간도 재직 기간에 들어가요."
+          />
           <DateField
             label="퇴직일"
             value={s.e}
             onChange={(v) => set({ e: v })}
+            min={DATE_MIN}
+            max={DATE_MAX}
             hint={
               <>
                 마지막으로 일한 날의 <strong>다음 날</strong>이에요. 9월 30일까지 일했다면 10월 1일을 넣으세요.
-                {lastWorkDay ? ` 지금 입력대로면 마지막 근무일은 ${formatKoreanDate(lastWorkDay)}이에요.` : null}
+                {lastWorkDay && retire && isDateInRange(retire)
+                  ? ` 지금 입력대로면 마지막 근무일은 ${formatKoreanDate(lastWorkDay)}이에요.`
+                  : null}
               </>
             }
           />

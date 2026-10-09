@@ -252,3 +252,13 @@ export function sanitizeDecimalInput(raw: string, decimals: number, allowNegativ
   const grouped = int.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
   return `${negative ? "-" : ""}${grouped}${hasDot ? `.${frac}` : ""}`;
 }
+
+/**
+ * Flip the sign of the text in a box that accepts negatives. Used by the ± button, because the
+ * iOS decimal keypad has no minus key. "1,234.5" → "-1,234.5", "-3." → "3.", "" → "-", "-" → "".
+ * The result still goes through sanitizeDecimalInput.
+ */
+export function toggleSignText(text: string): string {
+  const t = text.trim();
+  return /^[-−]/.test(t) ? t.replace(/^[-−]\s*/, "") : `-${t}`;
+}

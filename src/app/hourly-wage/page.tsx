@@ -10,12 +10,23 @@ import {
   MIN_WAGE_2027,
   payForWeeklyHours,
   probationWage,
+  RATE_2027_NOTE,
 } from "@/lib/calc/hourly-wage";
 import { HourlyWageCalculator } from "./HourlyWageCalculator";
-import { hourlyBasis, HoursLinkGrid, MinimumWageYearTable, WeeklyHoursTable } from "./tables";
+import {
+  hourlyBasis,
+  HoursLinkGrid,
+  MinimumWageYearTable,
+  STATIC_MONTH_LABEL,
+  WageHubTable,
+  WageLinkGrid,
+  WeeklyHoursTable,
+} from "./tables";
 
 const p40 = payForWeeklyHours(40, MIN_WAGE_2026);
-const p40y27 = payForWeeklyHours(40, MIN_WAGE_2027);
+/** 2027 최저시급 주 40시간; netInsured is the 2027 예상 (same as the 2026·2027 tables and 최저임금 계산기). */
+const p40y27 = payForWeeklyHours(40, MIN_WAGE_2027, 2027);
+const p40w12 = payForWeeklyHours(40, 12_000);
 const p20 = payForWeeklyHours(20, MIN_WAGE_2026);
 const p15 = payForWeeklyHours(15, MIN_WAGE_2026);
 const p14 = payForWeeklyHours(14, MIN_WAGE_2026);
@@ -63,7 +74,7 @@ export default function HourlyWagePage() {
     <ToolShell
       slug="hourly-wage"
       h1="시급·주휴수당 계산기 (알바 월급 계산기)"
-      lead={`시급과 근무시간을 넣으면 주휴수당을 포함한 주급과 월급, 3.3%나 4대보험을 뗀 실수령액까지 계산해 드려요. 2026년 최저시급 10,320원으로 주 40시간 일하면 월 ${formatNumber(p40.monthlyGross)}원입니다.`}
+      lead={`시급과 근무시간을 넣으면 주휴수당을 포함한 주급과 월급, 3.3%나 4대보험을 뗀 실수령액까지 계산해 드려요. 2026년 최저시급 10,320원으로 주 40시간 일하면 월 ${formatNumber(p40.monthlyGross)}원이에요.`}
       basis={hourlyBasis()}
       calculator={<HourlyWageCalculator />}
       faq={FAQ}
@@ -152,6 +163,15 @@ export default function HourlyWagePage() {
         </a>
       </p>
 
+      <h2>시급별 월급표 (주휴수당 포함)</h2>
+      <p>
+        최저시급보다 많이 받는다면 아래 표에서 시급별 월급을 바로 찾을 수 있습니다. 예를 들어 시급 12,000원으로 주 40시간 일하면
+        월 209시간 기준 {formatNumber(p40w12.monthlyGross)}원입니다. 시급을 누르면 주 15·20·30·40시간별 주급과 주휴수당, 3.3%·4대보험
+        공제 후 실수령액을 정리한 페이지로 이동합니다.
+      </p>
+      <WageHubTable />
+      <p className="note">세전 월급이며 주휴수당은 개근을 가정했습니다. 주 40시간만 월 209시간이고 나머지는 정확한 월 환산 시간으로 계산했습니다.</p>
+
       <h2>수습 기간에는 최저임금의 90%까지 줄 수 있을까</h2>
       <p>
         최저임금법 제5조 제2항과 시행령 제3조에 따라 아래 조건을 모두 갖춘 경우에만 수습 기간 동안 최저임금의 90%까지 줄 수 있습니다.
@@ -159,7 +179,10 @@ export default function HourlyWagePage() {
         하한입니다.
       </p>
       <ul>
-        <li>근로계약 기간이 1년 이상일 것 (1년 미만 단기 알바는 수습이어도 감액 불가)</li>
+        <li>
+          근로계약 기간을 1년 이상으로 정했거나 기간을 정하지 않은 계약(정규직 등)일 것 (1년 미만 단기 알바는 수습이어도 감액
+          불가)
+        </li>
         <li>수습을 시작한 날부터 3개월 이내일 것</li>
         <li>고용노동부 장관이 고시한 단순노무업무가 아닐 것 (주방 보조, 청소, 배달 같은 일은 감액 불가)</li>
       </ul>
@@ -173,10 +196,14 @@ export default function HourlyWagePage() {
         세금은 다음 해 5월 종합소득세 신고 때 정산합니다.
       </p>
       <p>
-        <strong>4대보험+소득세</strong>는 근로자로 신고할 때입니다. 2026년 기준 국민연금 4.75%, 건강보험 3.595%, 장기요양보험(건강보험료의
-        약 13.14%), 고용보험 0.9%를 내고, 소득세는 간이세액표에 따라 뗍니다. 같은 월급이면 실수령액은{" "}
+        <strong>4대보험+소득세</strong>는 근로자로 신고할 때입니다. {STATIC_MONTH_LABEL} 기준 국민연금 4.75%, 건강보험 3.595%,
+        장기요양보험(건강보험료의 약 13.14%), 고용보험 0.9%를 내고, 소득세는 간이세액표에 따라 뗍니다. 같은 월급이면 실수령액은{" "}
         {formatNumber(p40.netInsured)}원으로 3.3%보다 적지만, 국민연금 가입 기간이 쌓이고 실업급여를 받을 수 있으며 회사가 같은 금액
-        이상을 함께 냅니다.
+        이상을 함께 냅니다. 계산기는 접속한 달의 요율을 자동으로 적용합니다.
+      </p>
+      <p>
+        2027년에는 국민연금 근로자 부담이 5.0%로 오릅니다. 2027년 최저시급 주 40시간 월급 {formatNumber(p40y27.monthlyGross)}원의
+        실수령액은 약 {formatNumber(p40y27.netInsured)}원으로 예상됩니다. {RATE_2027_NOTE}
       </p>
       <p>
         근로자인지는 계약서 이름이 아니라 실제로 정해진 시간과 장소에서 지시를 받으며 일하는지로 판단합니다. 3.3%로 처리됐더라도 실제
@@ -237,6 +264,9 @@ export default function HourlyWagePage() {
 
       <h2>주 근무시간별 알바 월급 바로 보기</h2>
       <HoursLinkGrid />
+
+      <h2>시급별 월급 바로 보기</h2>
+      <WageLinkGrid />
     </ToolShell>
   );
 }

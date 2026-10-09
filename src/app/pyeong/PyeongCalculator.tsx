@@ -4,10 +4,22 @@ import { CalcLayout, CalcNotice } from "@/components/CalcLayout";
 import { NumberField, SegmentedField } from "@/components/fields";
 import { Statement, StatementFootnote, StatementHero, StatementRow, StatementSection } from "@/components/Statement";
 import { formatNumber } from "@/lib/format";
-import { estimateSupplyPyeong, m2ToPyeong, pyeongToM2, round2, sizeClass, TYPICAL_EXCLUSIVE_RATIO } from "@/lib/calc/pyeong";
+import {
+  areaBand,
+  estimateSupplyPyeong,
+  m2ToPyeong,
+  pyeongToM2,
+  round2,
+  sizeClass,
+  TYPICAL_EXCLUSIVE_RATIO,
+  TYPICAL_OFFICETEL_RATIO,
+} from "@/lib/calc/pyeong";
 import { useUrlState } from "@/lib/useUrlState";
 
 type Mode = "m2" | "py";
+
+/** 2-decimal display that matches the static pages (13.915 → 13.92). */
+const f2 = (n: number) => formatNumber(round2(n), 2);
 
 export function PyeongCalculator({ initialM2 = 84 }: { initialM2?: number }) {
   // URL keys: m = mode, v = value
@@ -18,6 +30,8 @@ export function PyeongCalculator({ initialM2 = 84 }: { initialM2?: number }) {
 
   const m2 = mode === "m2" ? value : pyeongToM2(value);
   const py = mode === "m2" ? m2ToPyeong(value) : value;
+  // Up to 30㎡ reads as 원룸·오피스텔, where listings use 계약면적 instead of 공급면적.
+  const studio = areaBand(m2) === "studio";
 
   return (
     <CalcLayout
@@ -57,15 +71,27 @@ export function PyeongCalculator({ initialM2 = 84 }: { initialM2?: number }) {
           <Statement title="면적 환산 명세" caption="1평 = 3.3058㎡">
             <StatementHero
               label={mode === "m2" ? `${formatNumber(value, 2)}㎡는` : `${formatNumber(value, 2)}평은`}
-              value={mode === "m2" ? `${formatNumber(py, 2)}평` : `${formatNumber(m2, 2)}㎡`}
+              value={mode === "m2" ? `${f2(py)}평` : `${f2(m2)}㎡`}
               sub={mode === "m2" ? `소수점 버림 ${Math.floor(py)}평` : `${formatNumber(m2 * 10.7639, 0)} 제곱피트`}
             />
             <StatementSection title="환산 내역">
-              <StatementRow label="제곱미터" value={`${formatNumber(m2, 2)}㎡`} />
-              <StatementRow label="평" value={`${formatNumber(py, 2)}평`} />
+              <StatementRow label="제곱미터" value={`${f2(m2)}㎡`} />
+              <StatementRow label="평" value={`${f2(py)}평`} />
               <StatementRow label="제곱피트" value={`${formatNumber(m2 * 10.7639104, 1)}ft²`} />
             </StatementSection>
-            {mode === "m2" ? (
+            {mode === "m2" && studio ? (
+              <StatementSection title="원룸·오피스텔이라면 (전용면적으로 볼 때)">
+                <StatementRow
+                  label="추정 계약면적"
+                  note={`전용률 ${Math.round(TYPICAL_OFFICETEL_RATIO * 100)}% 가정`}
+                  value={`약 ${f2(m2ToPyeong(m2 / TYPICAL_OFFICETEL_RATIO))}평`}
+                  emphasis
+                />
+                <StatementRow label="계약면적 (㎡)" value={`약 ${formatNumber(m2 / TYPICAL_OFFICETEL_RATIO, 1)}㎡`} />
+                <StatementRow label="규모 구분" note="통상적 구분" value={sizeClass(m2)} />
+              </StatementSection>
+            ) : null}
+            {mode === "m2" && !studio ? (
               <StatementSection title="아파트라면 (전용면적으로 볼 때)">
                 <StatementRow
                   label="흔히 부르는 평형"
@@ -74,11 +100,13 @@ export function PyeongCalculator({ initialM2 = 84 }: { initialM2?: number }) {
                   emphasis
                 />
                 <StatementRow label="추정 공급면적" value={`약 ${formatNumber(m2 / TYPICAL_EXCLUSIVE_RATIO, 1)}㎡`} />
-                <StatementRow label="규모 구분" value={sizeClass(m2)} />
+                <StatementRow label="규모 구분" note="통상적 구분" value={sizeClass(m2)} />
               </StatementSection>
             ) : null}
             <StatementFootnote>
-              평형은 단지마다 전용률이 달라 1~2평 차이 날 수 있어요. 정확한 공급면적은 분양 공고나 등기부를 확인하세요.
+              {studio && mode === "m2"
+                ? "오피스텔은 계약면적 기준 전용률이 보통 50~60%라 광고 면적이 건물마다 달라요. 정확한 면적은 분양 공고나 건축물대장을 확인하세요."
+                : "평형은 단지마다 전용률이 달라 1~2평 차이 날 수 있어요. 정확한 공급면적은 분양 공고나 건축물대장을 확인하세요."}
             </StatementFootnote>
           </Statement>
         ) : (

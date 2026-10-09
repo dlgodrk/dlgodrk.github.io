@@ -22,7 +22,7 @@
  * 거치기간: 대출기간에 포함된다. 거치 g개월 동안은 이자만 내고, 남은 (n − g)개월 동안 원금을 나눠 갚는다.
  * 만기일시상환은 처음부터 끝까지 이자만 내므로 거치기간을 적용하지 않는다.
  */
-import { manwonLabel } from "@/lib/format";
+import { formatNumber, formatWon, manwonLabel } from "@/lib/format";
 
 export type RepayMethod = "equal-payment" | "equal-principal" | "bullet";
 
@@ -261,4 +261,20 @@ export function loanAmountLabel(manwon: number): string {
 export function equalPaymentSummary(principal: number, annualRatePct: number, years: number) {
   const res = calcLoan({ principal, annualRatePct, months: years * 12, method: "equal-payment" });
   return { payment: res.firstPayment, totalInterest: res.totalInterest, totalPayment: res.totalPayment };
+}
+
+/**
+ * /loan/<만원>/ 페이지의 title과 H1. 대표 답(연 4% · 대표 기간 · 원리금균등 월 상환액)을 넣어
+ * 페이지마다 제목이 달라지게 한다. title은 사이트 이름을 뺀 45자 이하.
+ * 1억 → title "1억 대출 이자 - 연 4% 30년 월 상환액 477,415원", h1 "1억 대출 이자: 연 4% 30년이면 월 477,415원"
+ */
+export function loanPageHeadline(manwon: number): { title: string; h1: string } {
+  const label = loanAmountLabel(manwon);
+  const years = loanDefaultYears(manwon);
+  const pay = formatWon(equalPaymentSummary(manwon * 10_000, LOAN_EXAMPLE_RATE, years).payment);
+  const terms = `연 ${formatNumber(LOAN_EXAMPLE_RATE, 2)}% ${years}년`;
+  return {
+    title: `${label} 대출 이자 - ${terms} 월 상환액 ${pay}`,
+    h1: `${label} 대출 이자: ${terms}이면 월 ${pay}`,
+  };
 }

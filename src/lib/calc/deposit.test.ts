@@ -4,6 +4,7 @@ import {
   comprehensiveTaxRatePct,
   DEPOSIT_PAGE_MANWON,
   depositAmountLabel,
+  depositPageHeadline,
   grossInterest,
   grossInterestByDays,
   institutionsNeeded,
@@ -331,5 +332,19 @@ describe("deposit: programmatic pages", () => {
     expect(TABLE_RATES[TABLE_RATES.length - 1]).toBe(5);
     expect(TABLE_RATES).toHaveLength(13);
     expect(TABLE_MONTHS).toEqual([3, 6, 12, 24]);
+  });
+  it("puts the 연 3% 1년 세후 이자 into the title and H1", () => {
+    // 1억 × 3% = 3,000,000원; 소득세 420,000 + 지방소득세 42,000 = 462,000원 → 세후 2,538,000원
+    expect(depositPageHeadline(10000)).toEqual({
+      title: "1억 예금 이자 - 연 3% 1년 세후 2,538,000원",
+      h1: "1억 예금 이자: 연 3% 1년이면 세후 2,538,000원",
+    });
+    // 1천만원 × 3% = 300,000원 − 46,200원 = 253,800원
+    expect(depositPageHeadline(1000).h1).toBe("1천만원 예금 이자: 연 3% 1년이면 세후 253,800원");
+  });
+  it("keeps every title within 45 characters and unique", () => {
+    const titles = DEPOSIT_PAGE_MANWON.map((m) => depositPageHeadline(m).title);
+    for (const t of titles) expect(t.length).toBeLessThanOrEqual(45);
+    expect(new Set(titles).size).toBe(titles.length);
   });
 });

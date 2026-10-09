@@ -2,7 +2,7 @@ import { calcSalary, DEFAULT_NON_TAXABLE, DEFAULT_PAY_MONTH, SALARY_PAGE_MANWON,
 import { pensionBounds } from "@/lib/rates/insurance";
 import { bracketOf, type WithholdingRatio } from "@/lib/rates/withholding";
 import { MINIMUM_WAGE, MONTHLY_STANDARD_HOURS, minimumMonthly } from "@/lib/rates/labor";
-import { formatNumber, manwonLabel } from "@/lib/format";
+import { formatNumber, formatWon, manwonLabel } from "@/lib/format";
 
 /**
  * UI-side helpers for the 연봉 실수령액 calculator (form → engine input, 연봉↔월급 conversion,
@@ -175,6 +175,16 @@ export function taxBracketLabel(monthlyTaxable: number): string {
 /** 통상시급 환산 (월급 ÷ 209시간, 원 단위 반올림). */
 export function hourlyFromMonthly(monthlyGross: number): number {
   return Math.round(monthlyGross / MONTHLY_STANDARD_HOURS);
+}
+
+/** "2026년 최저시급 10,320원의 1.62배" or, close to the minimum, the gap in 원 ("…보다 1,234원 많은 수준"). */
+export function vsMinimumHourly(hourly: number, year: 2026 | 2027): string {
+  const min = MINIMUM_WAGE[year];
+  const ratio = hourly / min;
+  if (ratio >= 1.2) return `${year}년 최저시급 ${formatWon(min)}의 ${ratio.toFixed(2)}배`;
+  const diff = hourly - min;
+  if (diff === 0) return `${year}년 최저시급 ${formatWon(min)}과 같은 수준`;
+  return `${year}년 최저시급 ${formatWon(min)}보다 ${formatWon(Math.abs(diff))} ${diff > 0 ? "많은" : "적은"} 수준`;
 }
 
 /** Monthly pay vs the 209-hour 최저임금 월 환산액 of a year. */

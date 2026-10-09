@@ -4,9 +4,11 @@ import {
   exactHoursLabel,
   freelanceTax,
   HOURLY_PAGE_HOURS,
+  HOURLY_WAGE_PAGES,
   insuredDeductions,
   juhyuHours,
   juhyuPay,
+  liveRateRules,
   MIN_WAGE_2026,
   MIN_WAGE_2027,
   monthlyHourUnits,
@@ -14,13 +16,19 @@ import {
   monthlyHoursExact,
   monthlyPay,
   monthlyPayHours,
+  novemberNetIfDifferent,
   OFFICIAL_MONTHLY_HOURS_40H,
   overtimeHours,
   payForWeeklyHours,
+  pensionRateLabel,
   probationWage,
+  rateYearForWage,
+  ruleMonthLabel,
   scheduleForHours,
   shownHoursAreExact,
   uses209,
+  WAGE_PAGE_HOURS,
+  WAGE_TABLE,
   weeklyWorkHours,
 } from "./hourly-wage";
 
@@ -296,6 +304,113 @@ describe("deductions", () => {
     expect(f.monthlyNet).toBe(2_085_710);
     const i = calcHourly({ wage: 10_320, dailyHours: 8, days: 5, deduction: "insured" });
     expect(i.monthlyNet).toBe(2_156_880 - i.insured!.total);
+  });
+});
+
+describe("4대보험 rule month (live) and the 2027 예상", () => {
+  it("client calculators follow the visitor's month in 2026 and the 2027 예상 from 2027", () => {
+    expect(liveRateRules(2026, 10)).toEqual({ rateYear: 2026, payMonth: "2026-10" });
+    expect(liveRateRules(2026, 11)).toEqual({ rateYear: 2026, payMonth: "2026-11" });
+    expect(liveRateRules(2025, 12)).toEqual({ rateYear: 2026, payMonth: "2026-01" });
+    expect(liveRateRules(2027, 1)).toEqual({ rateYear: 2027, payMonth: "2026-12" });
+    expect(liveRateRules(2028, 6).rateYear).toBe(2027);
+  });
+  it("2026년 11월분 장기요양 = 건강보험료 × 0.1314 (노인장기요양보험법 법률 제21690호): 10원 차이 vector", () => {
+    // 12,500 × 209 = 2,612,500. 건강 floor10(2,612,500 × 3.595%) = 93,910;
+    // 10월분 floor10(93,910 × 0.9448/7.19) = 12,340 / 11월분 floor10(93,910 × 0.1314) = 12,330.
+    const oct = insuredDeductions(2_612_500, 40, "2026-10");
+    const nov = insuredDeductions(2_612_500, 40, "2026-11");
+    expect(oct.health).toBe(93_910);
+    expect(oct.longTermCare).toBe(12_340);
+    expect(nov.longTermCare).toBe(12_330);
+    expect(insuredDeductions(2_612_500, 40)).toEqual(oct); // static default = 2026년 10월분
+    expect(novemberNetIfDifferent(40, 12_500)).toBe(payForWeeklyHours(40, 12_500).netInsured + 10);
+    expect(novemberNetIfDifferent(40, MIN_WAGE_2026)).toBeNull();
+    const c = calcHourly({ wage: 12_500, dailyHours: 8, days: 5, deduction: "insured", payMonth: "2026-11" });
+    expect(c.insured!.longTermCare).toBe(12_330);
+  });
+  it("the 2026·2027 tables' 2026 column (10,320원) is the same in 10월분 and 11월분 for every page", () => {
+    for (const h of HOURLY_PAGE_HOURS) expect(novemberNetIfDifferent(h, MIN_WAGE_2026)).toBeNull();
+  });
+  it("2027 예상: 국민연금 5.0%, 건강 7.19% 동결, 나머지 2026 값 — one fixed rule set whatever month is passed", () => {
+    // 2,236,300 (10,700 × 209): 국민연금 floor10(2,236,000 × 5.0%) = 111,800; 건강 floor10(2,236,300 × 3.595%) = 80,390;
+    // 장기요양 floor10(80,390 × 0.1314) = 10,560; 고용 floor10(2,236,300 × 0.9%) = 20,120;
+    // 간이세액 (2026 표, 본인 1명) 26,910 + 지방 2,690.
+    const d = insuredDeductions(2_236_300, 40, undefined, 2027);
+    expect(d.pension).toBe(111_800);
+    expect(d.health).toBe(80_390);
+    expect(d.longTermCare).toBe(10_560);
+    expect(d.employment).toBe(20_120);
+    expect(d.incomeTax).toBe(26_910);
+    expect(d.localTax).toBe(2_690);
+    expect(d.total).toBe(252_470);
+    expect(2_236_300 - d.total).toBe(1_983_830);
+    expect(insuredDeductions(2_236_300, 40, "2026-10", 2027)).toEqual(d);
+    expect(insuredDeductions(2_236_300, 40, "2026-03", 2027)).toEqual(d);
+  });
+  it("calcHourly with rateYear 2027 shows the landing-page 2027 figure (same 2027 net everywhere)", () => {
+    for (const h of [10, 15, 20, 30, 40]) {
+      const s = scheduleForHours(h);
+      const c = calcHourly({
+        wage: MIN_WAGE_2027,
+        dailyHours: s.daily,
+        days: s.days,
+        deduction: "insured",
+        payMonth: "2026-10",
+        rateYear: 2027,
+      });
+      expect(c.rateYear).toBe(2027);
+      expect(c.monthlyNet).toBe(payForWeeklyHours(h, MIN_WAGE_2027, 2027).netInsured);
+    }
+    expect(calcHourly({ wage: 10_700, dailyHours: 8, days: 5, deduction: "insured", rateYear: 2027 }).monthlyNet).toBe(
+      1_983_830,
+    );
+    expect(calcHourly({ wage: 10_700, dailyHours: 8, days: 5, deduction: "insured" }).rateYear).toBe(2026);
+  });
+  it("static 시급 tables: only the 10,700원 row uses the 2027 예상", () => {
+    expect(rateYearForWage(MIN_WAGE_2027)).toBe(2027);
+    expect(rateYearForWage(MIN_WAGE_2026)).toBe(2026);
+    expect(WAGE_TABLE.filter((w) => rateYearForWage(w) === 2027)).toEqual([10_700]);
+    // That row equals the 2026·2027 table's 2027 column on every /hourly-wage/<hours>/ page.
+    for (const h of HOURLY_PAGE_HOURS) {
+      expect(payForWeeklyHours(h, 10_700, rateYearForWage(10_700)).netInsured).toBe(
+        payForWeeklyHours(h, MIN_WAGE_2027, 2027).netInsured,
+      );
+    }
+  });
+  it("labels", () => {
+    expect(ruleMonthLabel("2026-10")).toBe("2026년 10월");
+    expect(ruleMonthLabel("2026-03")).toBe("2026년 3월");
+    expect(pensionRateLabel(2026)).toBe("4.75%");
+    expect(pensionRateLabel(2027)).toBe("5.0%");
+  });
+});
+
+describe("wage landing pages (/hourly-wage/wage/<won>/)", () => {
+  it("list is sorted, unique, starts at the 2026 minimum and includes the 2027 minimum", () => {
+    expect([...HOURLY_WAGE_PAGES].sort((a, b) => a - b)).toEqual(HOURLY_WAGE_PAGES);
+    expect(new Set(HOURLY_WAGE_PAGES).size).toBe(HOURLY_WAGE_PAGES.length);
+    expect(HOURLY_WAGE_PAGES[0]).toBe(MIN_WAGE_2026);
+    expect(HOURLY_WAGE_PAGES).toContain(MIN_WAGE_2027);
+    for (const w of WAGE_TABLE) expect(HOURLY_WAGE_PAGES).toContain(w); // WageTable rows link to them
+  });
+  it("row hours have /hourly-wage/<hours>/ pages; wage values never look like hours params", () => {
+    for (const h of WAGE_PAGE_HOURS) expect(HOURLY_PAGE_HOURS).toContain(h);
+    for (const w of HOURLY_WAGE_PAGES) expect(HOURLY_PAGE_HOURS).not.toContain(w);
+  });
+  it("40h = 시급 × 209; part-time pays on the exact hours", () => {
+    expect(payForWeeklyHours(40, 11_000).monthlyGross).toBe(2_299_000);
+    expect(payForWeeklyHours(40, 12_000).monthlyGross).toBe(2_508_000);
+    expect(payForWeeklyHours(40, 15_000).monthlyGross).toBe(3_135_000);
+    expect(payForWeeklyHours(40, 20_000).monthlyGross).toBe(4_180_000);
+    expect(payForWeeklyHours(40, 12_000).juhyuPay).toBe(96_000);
+    expect(payForWeeklyHours(40, 12_000).weeklyTotal).toBe(576_000);
+    // 12,000 × 24 × 365/84 = 1,251,428.57; 12,000 × 18 × 365/84 = 938,571.43
+    expect(payForWeeklyHours(20, 12_000).monthlyGross).toBe(1_251_429);
+    expect(payForWeeklyHours(15, 12_000).monthlyGross).toBe(938_571);
+    // 14,000 × 104.2857… = 1,460,000 exactly (the page writes "=" instead of "≈")
+    expect(payForWeeklyHours(20, 14_000).monthlyGross).toBe(1_460_000);
+    expect(14_000 * payForWeeklyHours(20, 14_000).monthlyPayHours).toBeCloseTo(1_460_000, 6);
   });
 });
 

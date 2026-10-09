@@ -30,6 +30,7 @@
  * - 비과세 0%: 비과세종합저축(조특법 제88조의2), 청년도약계좌·청년미래적금 등
  * 각 세목은 따로 계산해 10원 미만을 버린다 (국고금 관리법 제47조 끝수 계산, 은행 원천징수 관행).
  */
+import { formatNumber } from "@/lib/format";
 
 export type InterestType = "simple" | "monthly";
 /** 조합 예탁금 과세 구분: 비과세 대상(1.4%) · 2026년 가입(5.9%) · 2027년 이후 가입(9.5%). */
@@ -313,6 +314,44 @@ export const SAVINGS_PAGE_MONTHLY = [10, 20, 30, 50, 100, 200];
 /** Rates (%) and periods (months) used in the programmatic-page tables. */
 export const TABLE_RATES = [2, 2.5, 3, 3.5, 4, 4.5, 5, 5.5, 6];
 export const TABLE_PERIODS = [6, 12, 24, 36];
+
+/** 연 금리(%) used for the direct answer (title, H1, lead) of /savings/<만원>/. */
+export const SAVINGS_HEADLINE_RATE = 3.5;
+
+/**
+ * Title and H1 of /savings/<만원>/: 연 3.5% 단리 · 1년 · 일반과세 세후 이자를 넣어 페이지마다 다르게 한다.
+ * title은 사이트 이름을 뺀 45자 이하. 50 → h1 "월 50만원 적금 1년 이자: 연 3.5%면 세후 96,240원"
+ */
+export function savingsPageHeadline(manwon: number): { title: string; h1: string } {
+  const net = formatNumber(calcSavings({ monthly: manwon * 10_000, months: 12, ratePct: SAVINGS_HEADLINE_RATE }).afterTaxInterest);
+  return {
+    title: `월 ${manwon}만원 적금 1년 이자 - 연 ${SAVINGS_HEADLINE_RATE}% 세후 ${net}원`,
+    h1: `월 ${manwon}만원 적금 1년 이자: 연 ${SAVINGS_HEADLINE_RATE}%면 세후 ${net}원`,
+  };
+}
+
+/**
+ * 매달 `monthly`원을 넣는 n개월 만기 적금 하나(단리 · 일반과세 15.4%)로 세후 만기 수령액이 `target`원 이상이
+ * 되는 가장 짧은 n. `maxMonths` 안에 닿지 않으면 null. 목표 금액 모으기 표에 쓴다.
+ */
+export function monthsToReach(monthly: number, target: number, ratePct: number, maxMonths = MAX_MONTHS): number | null {
+  if (!(monthly > 0) || !(target > 0)) return null;
+  for (let n = 1; n <= maxMonths; n++) {
+    if (calcSavings({ monthly, months: n, ratePct }).maturity >= target) return n;
+  }
+  return null;
+}
+
+/** 목표 금액 모으기 표의 목표 (원). */
+export const SAVINGS_TARGETS = [10_000_000, 30_000_000, 50_000_000, 100_000_000];
+
+/** 28 → "2년 4개월", 24 → "2년", 7 → "7개월" */
+export function monthsLabel(months: number): string {
+  const y = Math.floor(months / 12);
+  const m = months % 12;
+  if (!y) return `${m}개월`;
+  return m ? `${y}년 ${m}개월` : `${y}년`;
+}
 
 /** "12개월" -> "1년", "18개월" -> "18개월" */
 export function periodLabel(months: number): string {

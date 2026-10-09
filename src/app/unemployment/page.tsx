@@ -428,7 +428,7 @@ export default function UnemploymentPage() {
       </p>
       <ul>
         <li>
-          상한액을 정액 대신 하한액의 103%로 연동합니다. 2027년이라면 하루 약 {formatNumber(PROPOSAL_CAP_2027)}원입니다(셈셈
+          상한액을 정액 대신 하한액의 103%로 연동합니다. 2027년이라면 하루 약 {formatNumber(PROPOSAL_CAP_2027)}원입니다(셈도장
           추산).
         </li>
         <li>

@@ -1,8 +1,8 @@
 /** Site-wide constants. SITE_URL has no trailing slash. */
 export const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL ?? "https://dlgodrk.github.io").replace(/\/$/, "");
-export const SITE_NAME = "셈셈 계산기";
-export const SITE_SHORT_NAME = "셈셈";
-export const SITE_TAGLINE = "월급부터 만 나이, 평수까지. 계산은 셈셈에서.";
+export const SITE_NAME = "셈도장 계산기";
+export const SITE_SHORT_NAME = "셈도장";
+export const SITE_TAGLINE = "월급부터 만 나이, 평수까지. 계산은 셈도장에서.";
 export const SITE_DESCRIPTION =
   "2026년 기준 연봉 실수령액, 만 나이, 퇴직금, 실업급여, 주휴수당, 평수, 대출 이자, 전역일까지. 회원가입 없이 바로 쓰는 생활 계산기 모음입니다.";
 /** The year all money/tax rules on the site are based on. */

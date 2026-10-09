@@ -25,7 +25,7 @@ const pages = [
   ...TOOLS.map((t) => ({ file: t.slug, title: t.name, summary: t.summary })),
 ];
 
-const allText = pages.map((p) => p.title + p.summary).join("") + "셈셈 계산기 2026년 기준 무료 회원가입 없이 바로 계산";
+const allText = pages.map((p) => p.title + p.summary).join("") + "셈도장 계산기 2026년 기준 무료 회원가입 없이 바로 계산";
 const [bold, regular] = await Promise.all([loadFont(700, allText), loadFont(400, allText)]);
 
 function card({ title, summary }) {
@@ -58,7 +58,7 @@ function card({ title, summary }) {
       h(
         "div",
         { style: { display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "4px solid #16202e", paddingBottom: 18 } },
-        h("div", { style: { fontSize: 34, fontWeight: 700, color: "#16202e" } }, "셈셈 계산기"),
+        h("div", { style: { fontSize: 34, fontWeight: 700, color: "#16202e" } }, "셈도장 계산기"),
         h("div", { style: { fontSize: 26, color: "#687487" } }, "2026년 기준"),
       ),
       h(
@@ -88,7 +88,7 @@ function card({ title, summary }) {
             justifyContent: "center",
             transform: "rotate(-11deg)",
             color: "#c4352b",
-            fontSize: 42,
+            fontSize: 32,
             fontWeight: 700,
           },
         },
@@ -105,7 +105,7 @@ function card({ title, summary }) {
               justifyContent: "center",
             },
           },
-          "셈셈",
+          "셈도장",
         ),
       ),
     ),

@@ -46,9 +46,9 @@ function jobkoreaBytes(s: string): number {
 }
 
 describe("worked example used on the page", () => {
-  const s = analyzeText("안녕하세요. 셈셈입니다.");
+  const s = analyzeText("안녕하세요. 반갑습니다.");
   it("counts characters with and without spaces", () => {
-    // 안녕하세요. (6) + space (1) + 셈셈입니다. (6)
+    // 안녕하세요. (6) + space (1) + 반갑습니다. (6)
     expect(s.chars).toBe(13);
     expect(s.charsNoSpace).toBe(12);
     expect(s.charsNoNewline).toBe(13);
@@ -64,7 +64,7 @@ describe("worked example used on the page", () => {
 
 describe("한글 2바이트 matches 사람인·잡코리아", () => {
   const samples = [
-    "안녕하세요. 셈셈입니다.",
+    "안녕하세요. 반갑습니다.",
     "지원 동기\n저는 2026년 상반기에 SW 개발 직무로…",
     "Hello, world!\tTab\nNew line",
     "café ① ㅋㅋ 漢字 ＡＢＣ “따옴표”",
@@ -167,7 +167,7 @@ describe("whitespace and structure", () => {
     expect(s.lines).toBe(5);
     expect(s.paragraphs).toBe(3);
     expect(s.words).toBe(5);
-    expect(analyzeText("  hello   world \n 셈셈 ").words).toBe(3);
+    expect(analyzeText("  hello   world \n 셈도장 ").words).toBe(3);
     expect(analyzeText("   ").words).toBe(0);
     expect(analyzeText("   ").paragraphs).toBe(0);
     expect(analyzeText("   ").lines).toBe(1);
@@ -183,7 +183,7 @@ describe("target limit", () => {
     expect(limitStatus(10, 0)).toBeNull();
   });
   it("picks the value for each basis", () => {
-    const s = analyzeText("안녕하세요. 셈셈입니다.");
+    const s = analyzeText("안녕하세요. 반갑습니다.");
     expect(basisValue(s, "all")).toBe(13);
     expect(basisValue(s, "nospace")).toBe(12);
     expect(basisValue(s, "byte2")).toBe(23);

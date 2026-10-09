@@ -439,7 +439,7 @@ export function UnemploymentCalculator() {
               </StatementSection>
               {r.projected && capProposal !== null && dailyProposal !== null ? (
                 <StatementSection title={`${r.rule.year}년 개편 정부안이 통과되면 (미확정)`}>
-                  <StatementRow label="상한액" note="8시간 하한 × 103%, 셈셈 추산" value={formatWon(capProposal)} />
+                  <StatementRow label="상한액" note="8시간 하한 × 103%, 셈도장 추산" value={formatWon(capProposal)} />
                   <StatementRow
                     label="1일 구직급여"
                     note={proposalNote(dailyProposal, capProposal, r.floor)}

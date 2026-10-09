@@ -10,7 +10,7 @@ export function ogImageFor(path: string): string {
 }
 
 type PageMetaInput = {
-  /** Page title WITHOUT the site name (the root layout template appends " | 셈셈 계산기"). */
+  /** Page title WITHOUT the site name (the root layout template appends " | 셈도장 계산기"). */
   title: string;
   /** 80–160 Korean characters. Lead with what the page answers. */
   description: string;

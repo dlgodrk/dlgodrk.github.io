@@ -45,7 +45,7 @@ const CHECKED = "2026년 10월 9일";
  * The author runs the site, so every post says so in the paragraph that carries the link
  * (docs/community/README.md: 만든 사람임을 밝힙니다). posts.test.ts checks it.
  */
-export const DISCLOSURE = "셈셈 계산기는 제가 직접 만들어 운영하는 무료 계산기 사이트입니다.";
+export const DISCLOSURE = "셈도장 계산기는 제가 직접 만들어 운영하는 무료 계산기 사이트입니다.";
 
 /** A sentence in a post states a comparison; fail the build instead of publishing it when the data no longer agrees. */
 function claim(ok: boolean, what: string): void {

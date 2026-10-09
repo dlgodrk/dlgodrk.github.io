@@ -1,7 +1,7 @@
-# 셈셈 계산기 — conventions for building a calculator
+# 셈도장 계산기 — conventions for building a calculator
 
 Project root: the repository root (package name `semcalc`).
-Live URL: https://dlgodrk.github.io/ (GitHub Pages, served at the domain root; if a basePath is ever added, links keep working only when you link with `next/link` or `absoluteUrl()`, never raw "/path" strings in `<a>`/`<img>`) — brand name **셈셈 계산기** (short: 셈셈).
+Live URL: https://dlgodrk.github.io/ (GitHub Pages, served at the domain root; if a basePath is ever added, links keep working only when you link with `next/link` or `absoluteUrl()`, never raw "/path" strings in `<a>`/`<img>`) — brand name **셈도장 계산기** (short: 셈도장).
 Audience: Korean adults on phones (≈75% mobile). Every page is Korean.
 Size today (2026-10-09 build): **30 calculators** (registry: `src/lib/tools.ts`) and **536 URLs** in `sitemap.xml`
 (home, /about/, /privacy/, 30 tool pages, 503 programmatic pages). Today is 2026-10-09.
@@ -73,7 +73,7 @@ A new tool needs a `TOOLS` entry and an OG image (`node scripts/og.mjs` writes `
 - `@/lib/format`: `formatNumber(n, digits)`, `formatWon`, `koreanWon` (1억 2,345만원), `manwonLabel`, `parseNumber`, `floorTo` (절사), `roundTo`, `formatPercent`,
   `longestRunEm(text)` (estimated em width of the longest unbreakable run: Hangul 1, digits/Latin 0.62, punctuation 0.3; "14,512,345,678원" → 8.72 — use it only if you build another big figure outside `StatementHero`).
 - `@/lib/date`: timezone-safe `YMD` helpers — `parseYMD`, `formatYMD`, `formatKoreanDate` ("2026년 10월 9일 (금)"), `addDays`, `addMonths` (clamps day), `diffDays`, `daysInMonth`, `isLeapYear`, `weekdayKo`, `compareYMD`.
-- `@/lib/seo`: `pageMetadata({ title, description, path, keywords, noindex })` — title WITHOUT site name (layout appends " | 셈셈 계산기"). The OG image is picked from the path's first segment (`/og/<slug>.png`). `FaqItem` type.
+- `@/lib/seo`: `pageMetadata({ title, description, path, keywords, noindex })` — title WITHOUT site name (layout appends " | 셈도장 계산기"). The OG image is picked from the path's first segment (`/og/<slug>.png`). `FaqItem` type.
 - `@/lib/site`: `SITE_URL`, `SITE_NAME`, `RULE_YEAR` (2026), `RULES_CHECKED_AT`, `absoluteUrl()`, and
   `SITE_CONTACT` — the only public contact channel (GitHub Issues). Link it as
   `<a href={SITE_CONTACT.url}>{SITE_CONTACT.channel}</a>` in prose ("GitHub 이슈") or with `SITE_CONTACT.label`

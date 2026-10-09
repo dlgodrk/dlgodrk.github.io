@@ -84,7 +84,7 @@ const rssItems = pages.filter((p) => p.depth === 1 && !["/about/", "/privacy/"].
 const rss = `<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0">
 <channel>
-<title>셈셈 계산기</title>
+<title>셈도장 계산기</title>
 <link>${SITE_URL}/</link>
 <description>2026년 기준 생활 계산기 모음</description>
 <language>ko</language>

@@ -4,7 +4,7 @@ import { pageMetadata } from "@/lib/seo";
 import { RULES_CHECKED_AT, RULE_YEAR, SITE_CONTACT, SITE_NAME } from "@/lib/site";
 
 export const metadata: Metadata = pageMetadata({
-  title: "셈셈 계산기 소개",
+  title: "셈도장 계산기 소개",
   description: `${SITE_NAME}는 연봉 실수령액, 만 나이, 퇴직금처럼 생활에서 자주 하는 계산을 ${RULE_YEAR}년 기준으로 바로 해 주는 무료 계산기 모음입니다.`,
   path: "/about/",
 });
@@ -13,7 +13,7 @@ export default function AboutPage() {
   return (
     <article className="page-wrap pt-10 pb-16">
       <div className="prose-ko">
-      <h1 className="text-[1.75rem] font-bold text-ink">셈셈 계산기 소개</h1>
+      <h1 className="text-[1.75rem] font-bold text-ink">셈도장 계산기 소개</h1>
       <p>
         {SITE_NAME}는 월급 명세서를 읽거나, 퇴직금을 가늠하거나, 아파트 평수를 따질 때처럼 생활 속에서 자주 하는 계산을 한
         곳에 모은 무료 사이트입니다. 회원가입, 앱 설치, 개인정보 입력 없이 바로 쓸 수 있습니다.

@@ -384,7 +384,7 @@ describe("eligibility", () => {
   });
 });
 
-describe("2027 정부안 (미확정, 셈셈 추산)", () => {
+describe("2027 정부안 (미확정, 셈도장 추산)", () => {
   it("상한 = 8시간 하한 68,480원 × 103% = 70,534원", () => {
     expect(proposalCap(2027)).toBe(70_534);
     expect(proposalCap(2030)).toBeNull();

@@ -6,7 +6,7 @@ export function SiteHeader() {
   return (
     <header className="sticky top-0 z-40 border-b border-rule bg-paper/90 backdrop-blur supports-[backdrop-filter]:bg-paper/75">
       <div className="page-wrap flex h-14 items-center gap-4">
-        <Link href="/" className="flex shrink-0 items-center gap-2" aria-label="셈셈 계산기 홈">
+        <Link href="/" className="flex shrink-0 items-center gap-2" aria-label="셈도장 계산기 홈">
           <Logo />
           <span className="text-lg font-bold tracking-tight text-ink">{SITE_SHORT_NAME}</span>
         </Link>

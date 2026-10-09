@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>2027 공휴일 총정리, 연차 2일로 추석 9일 쉬는 법</title>
+</head>
+<body style="max-width:720px;margin:0 auto;padding:24px 16px 48px;background-color:#ffffff;color:#222222;font-family:'Noto Sans KR','Malgun Gothic','Apple SD Gothic Neo',sans-serif;">
+<!-- blog-meta:start -->
+<div style="user-select:none;-webkit-user-select:none;-ms-user-select:none;margin:0 0 32px;padding:14px 16px;border:1px dashed #999999;background-color:#f6f6f6;font-size:13px;line-height:1.8;color:#555555;">
+<strong>네이버 블로그 원고</strong> · 이 회색 상자는 전체 선택(Ctrl+A)에서 빠지도록 설정했습니다. 붙여넣은 뒤 이 상자가 보이면 지워 주세요. 제목과 태그는 docs/blog/README.md에서 복사하세요.<br>
+제목: 2027 공휴일 총정리, 연차 2일로 추석 9일 쉬는 법 (31자)<br>
+카테고리: 생활 계산기<br>
+태그: #2027공휴일 #2027대체공휴일 #2027황금연휴 #2027연차꿀팁 #연차꿀팁 #2027달력 #2027추석 #2027설날 #빨간날 #생활계산기<br>
+숫자 기준: src/lib/calc/holidays.ts (holidayBlocks, leaveTips, yearSummary) · 주 5일 근무 기준
+</div>
+<!-- blog-meta:end -->
+<p style="margin:0 0 16px;font-size:16px;line-height:1.8;">2027년 달력의 빨간 날을 미리 알아 두면 같은 연차로 더 길게 쉴 수 있습니다. 우주항공청이 2026년 6월 29일 발표한 2027년도 월력요항에 따르면 2027년 실질 공휴일은 일요일을 포함해 72일입니다. 주 5일 근무자라면 토요일까지 더해 119일을 쉬고 246일을 일합니다. 대체공휴일은 7일로 2026년(4일)보다 많지만, 평일에 쉬는 공휴일은 15일로 2026년(16일)보다 하루 적습니다.</p>
+<h2 style="margin:36px 0 14px;font-size:21px;line-height:1.4;">2027년 공휴일과 연휴 한눈에 보기</h2>
+<p style="margin:20px 0 8px;font-size:15px;font-weight:bold;">표 1. 2027년 공휴일과 연휴 (토·일 쉬는 주 5일 근무 기준)</p>
+<table border="1" cellspacing="0" cellpadding="7" style="border-collapse:collapse;width:100%;font-size:14px;line-height:1.5;">
+  <thead>
+    <tr><th style="padding:7px 8px;background-color:#f1f3f5;font-weight:bold;text-align:center;">연휴</th><th style="padding:7px 8px;background-color:#f1f3f5;font-weight:bold;text-align:center;">공휴일</th><th style="padding:7px 8px;background-color:#f1f3f5;font-weight:bold;text-align:center;">쉬는 기간</th><th style="padding:7px 8px;background-color:#f1f3f5;font-weight:bold;text-align:center;">일수</th></tr>
+  </thead>
+  <tbody>
+    <tr><td style="padding:7px 8px;text-align:center;">신정</td><td style="padding:7px 8px;text-align:left;">1/1 신정</td><td style="padding:7px 8px;text-align:center;">1/1(금) ~ 1/3(일)</td><td style="padding:7px 8px;text-align:right;">3일</td></tr>
+    <tr><td style="padding:7px 8px;text-align:center;">설 연휴</td><td style="padding:7px 8px;text-align:left;">2/6 설날 전날, 2/7 설날, 2/8 설날 다음 날, 2/9 설날 대체공휴일</td><td style="padding:7px 8px;text-align:center;">2/6(토) ~ 2/9(화)</td><td style="padding:7px 8px;text-align:right;">4일</td></tr>
+    <tr><td style="padding:7px 8px;text-align:center;">3·1절</td><td style="padding:7px 8px;text-align:left;">3/1 3·1절</td><td style="padding:7px 8px;text-align:center;">2/27(토) ~ 3/1(월)</td><td style="padding:7px 8px;text-align:right;">3일</td></tr>
+    <tr><td style="padding:7px 8px;text-align:center;">노동절</td><td style="padding:7px 8px;text-align:left;">5/1 노동절, 5/3 노동절 대체공휴일</td><td style="padding:7px 8px;text-align:center;">5/1(토) ~ 5/3(월)</td><td style="padding:7px 8px;text-align:right;">3일</td></tr>
+    <tr><td style="padding:7px 8px;text-align:center;">어린이날</td><td style="padding:7px 8px;text-align:left;">5/5 어린이날</td><td style="padding:7px 8px;text-align:center;">5/5(수)</td><td style="padding:7px 8px;text-align:right;">1일</td></tr>
+    <tr><td style="padding:7px 8px;text-align:center;">부처님오신날</td><td style="padding:7px 8px;text-align:left;">5/13 부처님오신날</td><td style="padding:7px 8px;text-align:center;">5/13(목)</td><td style="padding:7px 8px;text-align:right;">1일</td></tr>
+    <tr><td style="padding:7px 8px;text-align:center;">현충일</td><td style="padding:7px 8px;text-align:left;">6/6 현충일 (일요일, 대체공휴일 없음)</td><td style="padding:7px 8px;text-align:center;">6/5(토) ~ 6/6(일)</td><td style="padding:7px 8px;text-align:right;">2일(주말)</td></tr>
+    <tr><td style="padding:7px 8px;text-align:center;">제헌절</td><td style="padding:7px 8px;text-align:left;">7/17 제헌절, 7/19 제헌절 대체공휴일</td><td style="padding:7px 8px;text-align:center;">7/17(토) ~ 7/19(월)</td><td style="padding:7px 8px;text-align:right;">3일</td></tr>
+    <tr><td style="padding:7px 8px;text-align:center;">광복절</td><td style="padding:7px 8px;text-align:left;">8/15 광복절, 8/16 광복절 대체공휴일</td><td style="padding:7px 8px;text-align:center;">8/14(토) ~ 8/16(월)</td><td style="padding:7px 8px;text-align:right;">3일</td></tr>
+    <tr><td style="padding:7px 8px;text-align:center;">추석 연휴</td><td style="padding:7px 8px;text-align:left;">9/14 추석 전날, 9/15 추석, 9/16 추석 다음 날</td><td style="padding:7px 8px;text-align:center;">9/14(화) ~ 9/16(목)</td><td style="padding:7px 8px;text-align:right;">3일</td></tr>
+    <tr><td style="padding:7px 8px;text-align:center;">개천절</td><td style="padding:7px 8px;text-align:left;">10/3 개천절, 10/4 개천절 대체공휴일</td><td style="padding:7px 8px;text-align:center;">10/2(토) ~ 10/4(월)</td><td style="padding:7px 8px;text-align:right;">3일</td></tr>
+    <tr><td style="padding:7px 8px;text-align:center;">한글날</td><td style="padding:7px 8px;text-align:left;">10/9 한글날, 10/11 한글날 대체공휴일</td><td style="padding:7px 8px;text-align:center;">10/9(토) ~ 10/11(월)</td><td style="padding:7px 8px;text-align:right;">3일</td></tr>
+    <tr><td style="padding:7px 8px;text-align:center;">성탄절</td><td style="padding:7px 8px;text-align:left;">12/25 성탄절, 12/27 성탄절 대체공휴일</td><td style="padding:7px 8px;text-align:center;">12/25(토) ~ 12/27(월)</td><td style="padding:7px 8px;text-align:right;">3일</td></tr>
+  </tbody>
+</table>
+<p style="margin:0 0 16px;font-size:16px;line-height:1.8;">2026년 법 개정으로 노동절(5월 1일)이 새로 공휴일이 되고 제헌절(7월 17일)이 다시 공휴일이 되었으며, 두 날 모두 대체공휴일 대상입니다. 2027년에는 두 날이 모두 토요일이라 5월 3일과 7월 19일이 처음으로 대체공휴일이 됩니다. 반대로 현충일(6월 6일)은 일요일인데 대체공휴일 대상이 아니어서 쉬는 날이 늘지 않습니다. 연차 없이 사흘 이상 쉬는 연휴는 모두 10번이고, 가장 긴 연휴는 설 연휴 2월 6일(토)부터 9일(화)까지 4일입니다.</p>
+<h2 style="margin:36px 0 14px;font-size:21px;line-height:1.4;">연차 붙이기 추천 조합</h2>
+<p style="margin:0 0 16px;font-size:16px;line-height:1.8;">연차 하루를 쓸 때 함께 따라오는 주말과 공휴일이 가장 많은 조합을 연휴별로 골랐습니다. 연차 4일을 써서 주말 이틀만 더 붙는 조합은 뺐습니다.</p>
+<p style="margin:20px 0 8px;font-size:15px;font-weight:bold;">표 2. 2027 연차 꿀팁 (주 5일 근무 기준)</p>
+<table border="1" cellspacing="0" cellpadding="7" style="border-collapse:collapse;width:100%;font-size:14px;line-height:1.5;">
+  <thead>
+    <tr><th style="padding:7px 8px;background-color:#f1f3f5;font-weight:bold;text-align:center;">연휴</th><th style="padding:7px 8px;background-color:#f1f3f5;font-weight:bold;text-align:center;">연차 쓸 날</th><th style="padding:7px 8px;background-color:#f1f3f5;font-weight:bold;text-align:center;">연차</th><th style="padding:7px 8px;background-color:#f1f3f5;font-weight:bold;text-align:center;">쉬는 기간</th><th style="padding:7px 8px;background-color:#f1f3f5;font-weight:bold;text-align:center;">총 휴일</th></tr>
+  </thead>
+  <tbody>
+    <tr><td style="padding:7px 8px;text-align:center;">성탄절·신정</td><td style="padding:7px 8px;text-align:left;">12/28(월)·12/29(화)·12/30(수)·12/31(목) (2026년)</td><td style="padding:7px 8px;text-align:right;">4일</td><td style="padding:7px 8px;text-align:center;">2026년 12/25(금) ~ 2027년 1/3(일)</td><td style="padding:7px 8px;text-align:right;"><strong>10일</strong></td></tr>
+    <tr><td style="padding:7px 8px;text-align:center;">설 연휴</td><td style="padding:7px 8px;text-align:left;">2/10(수)·2/11(목)·2/12(금)</td><td style="padding:7px 8px;text-align:right;">3일</td><td style="padding:7px 8px;text-align:center;">2/6(토) ~ 2/14(일)</td><td style="padding:7px 8px;text-align:right;"><strong>9일</strong></td></tr>
+    <tr><td style="padding:7px 8px;text-align:center;">노동절·어린이날</td><td style="padding:7px 8px;text-align:left;">5/4(화)</td><td style="padding:7px 8px;text-align:right;">1일</td><td style="padding:7px 8px;text-align:center;">5/1(토) ~ 5/5(수)</td><td style="padding:7px 8px;text-align:right;"><strong>5일</strong></td></tr>
+    <tr><td style="padding:7px 8px;text-align:center;">노동절·어린이날</td><td style="padding:7px 8px;text-align:left;">5/4(화)·5/6(목)·5/7(금)</td><td style="padding:7px 8px;text-align:right;">3일</td><td style="padding:7px 8px;text-align:center;">5/1(토) ~ 5/9(일)</td><td style="padding:7px 8px;text-align:right;"><strong>9일</strong></td></tr>
+    <tr><td style="padding:7px 8px;text-align:center;">부처님오신날</td><td style="padding:7px 8px;text-align:left;">5/14(금)</td><td style="padding:7px 8px;text-align:right;">1일</td><td style="padding:7px 8px;text-align:center;">5/13(목) ~ 5/16(일)</td><td style="padding:7px 8px;text-align:right;"><strong>4일</strong></td></tr>
+    <tr><td style="padding:7px 8px;text-align:center;">추석 연휴</td><td style="padding:7px 8px;text-align:left;">9/13(월)·9/17(금)</td><td style="padding:7px 8px;text-align:right;">2일</td><td style="padding:7px 8px;text-align:center;">9/11(토) ~ 9/19(일)</td><td style="padding:7px 8px;text-align:right;"><strong>9일</strong></td></tr>
+    <tr><td style="padding:7px 8px;text-align:center;">개천절·한글날</td><td style="padding:7px 8px;text-align:left;">10/5(화)·10/6(수)·10/7(목)·10/8(금)</td><td style="padding:7px 8px;text-align:right;">4일</td><td style="padding:7px 8px;text-align:center;">10/2(토) ~ 10/11(월)</td><td style="padding:7px 8px;text-align:right;"><strong>10일</strong></td></tr>
+  </tbody>
+</table>
+<p style="margin:0 0 16px;font-size:16px;line-height:1.8;">연차를 1~4일 중 며칠 쓰든 2027년에 가장 길게 쉴 수 있는 연휴는 추석입니다. 연차 1일이면 6일, 2일이면 9일, 3일이면 10일, 4일이면 11일을 쉽니다. 추석 연휴(9월 14~16일)가 화~목요일이라 앞뒤 9/13(월)·9/17(금)에 연차 2일만 써도 9월 11일(토)부터 19일(일)까지 9일을 쉬고, 연차 4일을 모두 쓴다면 9/9(목)·9/10(금)·9/13(월)·9/17(금)에 써서 9월 9일(목)부터 19일(일)까지 11일을 쉽니다. 설 연휴는 2월 6일(토)부터 9일(화)까지 4일이고, 바로 뒤 2/10(수)·2/11(목)·2/12(금)에 연차 3일을 붙이면 9일이 됩니다.</p>
+<p style="margin:0 0 16px;font-size:16px;line-height:1.8;">5월에는 노동절 대체공휴일(5월 3일)과 어린이날(5월 5일) 사이 5/4(화) 하루만 연차를 내면 5월 1일(토)부터 5일(수)까지 5일을 쉽니다. 5/4(화)·5/6(목)·5/7(금)에 연차 3일을 쓰면 5월 9일(일)까지 9일로 늘어납니다. 10월에는 개천절 대체공휴일(10월 4일)과 한글날(10월 9일) 사이 10/5(화)·10/6(수)·10/7(목)·10/8(금)에 연차 4일을 쓰면 10월 2일(토)부터 11일(월)까지 10일을 쉽니다.</p>
+<p style="margin:0 0 16px;font-size:16px;line-height:1.8;">2026년 연차가 남았다면 올해 연말도 노려볼 만합니다. 성탄절(12월 25일)과 2027년 신정(1월 1일)이 모두 금요일이라, 그 사이 12/28(월)·12/29(화)·12/30(수)·12/31(목)에 연차 4일을 쓰면 2026년 12월 25일(금)부터 2027년 1월 3일(일)까지 10일을 쉽니다.</p>
+<h2 style="margin:36px 0 14px;font-size:21px;line-height:1.4;">연차 쓰기 전에 확인할 것</h2>
+<ul>
+  <li style="margin:0 0 10px;font-size:16px;line-height:1.8;"><strong>회사 규모:</strong> 상시 근로자 5명 이상 사업장은 관공서 공휴일과 대체공휴일을 유급휴일로 줘야 합니다(근로기준법 시행령 제30조 제2항). 5명 미만 사업장은 이 의무가 없고, 공휴일 가운데 노동절만 규모와 관계없이 유급휴일입니다. 5월 3일 노동절 대체공휴일은 5명 이상 사업장에만 해당합니다.</li>
+  <li style="margin:0 0 10px;font-size:16px;line-height:1.8;"><strong>신청 시기:</strong> 연차는 근로자가 원하는 날에 쓰는 것이 원칙이지만, 사업 운영에 막대한 지장이 있으면 회사가 시기를 바꿀 수 있습니다(근로기준법 제60조 제5항). 연휴 앞뒤는 신청이 몰리므로 일찍 내는 것이 좋습니다.</li>
+  <li style="margin:0 0 10px;font-size:16px;line-height:1.8;"><strong>연차 개수:</strong> 1년 동안 80% 이상 출근하면 15일, 입사 1년 미만이면 1개월 개근할 때마다 1일이 생깁니다(근로기준법 제60조). 2027년 1월 초에 입사했다면 9월 추석 연휴 전까지 최대 8일이 생깁니다. 다만 상시 5명 미만 사업장은 연차유급휴가 조항이 적용되지 않아(근로기준법 시행령 제7조 별표 1), 회사 규정이 없으면 법정 연차가 없습니다.</li>
+  <li style="margin:0 0 10px;font-size:16px;line-height:1.8;"><strong>근무 형태:</strong> 표는 토·일요일에 쉬는 주 5일 근무 기준입니다. 토요일에도 일하거나 교대 근무를 한다면 쉬는 날과 연차 조합이 달라집니다.</li>
+</ul>
+<h2 style="margin:36px 0 14px;font-size:21px;line-height:1.4;">내 근무 조건으로 다시 계산하기</h2>
+<p style="margin:0 0 16px;font-size:16px;line-height:1.8;">셈셈 계산기는 제가 직접 만들어 운영하는 무료 계산기 사이트입니다. 이 사이트의 <a href="https://dlgodrk.github.io/holidays/2027/">2027년 공휴일·연차 꿀팁 페이지</a>에서 월별 근무일수와 연차 일수별로 가장 길게 쉬는 방법을 확인할 수 있습니다. 주 6일 근무나 5인 미만 사업장 기준으로 바꿔 계산할 수도 있습니다.</p>
+<p style="margin:6px 0 20px;font-size:13px;line-height:1.7;color:#666666;">출처: 우주항공청 2027년도 월력요항(2026. 6. 29. 발표), 한국천문연구원 2027년 달력자료, 관공서의 공휴일에 관한 규정(대통령령 제36290호), 근로기준법 제60조, 근로기준법 시행령 제7조·제30조 (2026년 10월 9일 확인)</p>
+</body>
+</html>

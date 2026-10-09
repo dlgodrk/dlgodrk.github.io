@@ -7,11 +7,13 @@ import { sanitizeDecimalDraft } from "@/lib/calc/brokerage-fee";
 
 /**
  * Decimal number box for the brokerage-fee calculator (협의 요율, 월세).
- * Same markup and classes as the shared NumberField, but it keeps the text being typed
- * ("0.", "45.") in local state and parses it only for the calculation, so 0.35% or 45.5만원
- * can be typed key by key. The shared field turns "0." back into "0", so 0 → . → 3 became 3.
+ * Same markup and classes as the shared NumberField, and like it the text being typed ("0.", "45.")
+ * is kept so 0.35% or 45.5만원 can be typed key by key, and the hint is linked with aria-describedby.
+ * It stays local for two things NumberField does not do:
+ * - A preset with value NaN clears the box and shows as pressed while the box is empty ("상한" chip).
+ *   NumberField compares presets with ===, so a NaN preset never reads as selected.
+ * - A leading "." becomes "0." (".35" → 0.35%). NumberField drops a lone "." so ".35" becomes 35.
  * When `value` changes from outside (URL, deal switch) the box shows that value.
- * A preset with value NaN clears the box (used for "상한").
  */
 
 function sameNumber(a: number, b: number): boolean {
@@ -47,6 +49,7 @@ export function DraftNumberField({
   placeholder?: string;
 }) {
   const id = useId();
+  const hintId = `${id}-hint`;
   const [draft, setDraft] = useState(() => ({ text: toText(value, decimals), value }));
   const text = sameNumber(draft.value, value) ? draft.text : toText(value, decimals);
 
@@ -67,6 +70,7 @@ export function DraftNumberField({
           inputMode="decimal"
           autoComplete="off"
           placeholder={placeholder}
+          aria-describedby={hint ? hintId : undefined}
           value={text}
           onChange={(e) => {
             let next = sanitizeDecimalDraft(e.target.value, decimals);
@@ -96,7 +100,11 @@ export function DraftNumberField({
           ))}
         </div>
       ) : null}
-      {hint ? <p className="field-hint">{hint}</p> : null}
+      {hint ? (
+        <p id={hintId} className="field-hint">
+          {hint}
+        </p>
+      ) : null}
     </div>
   );
 }

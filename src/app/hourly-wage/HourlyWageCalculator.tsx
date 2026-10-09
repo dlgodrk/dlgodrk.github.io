@@ -22,6 +22,7 @@ import {
   pensionRateLabel,
   RATE_2027_NOTE_UI,
   rateYearForWage,
+  round1,
   ruleMonthLabel,
   shownHoursAreExact,
   type DeductionMode,
@@ -29,7 +30,6 @@ import {
 } from "@/lib/calc/hourly-wage";
 import { useToday } from "@/lib/useToday";
 import { useUrlState } from "@/lib/useUrlState";
-import { HoursField } from "./HoursField";
 
 const MODES: DeductionMode[] = ["none", "freelance", "insured"];
 
@@ -60,7 +60,10 @@ export function HourlyWageCalculator({
   const mode: DeductionMode = MODES.includes(s.m) ? s.m : "none";
   const days = Math.min(7, Math.max(1, Math.round(Number.isFinite(s.d) ? s.d : 5)));
   const wageOk = Number.isFinite(s.w) && s.w > 0;
-  const hoursOk = Number.isFinite(s.h) && s.h > 0 && s.h <= 24;
+  // The box takes one decimal (4.5시간); round a hand-edited link (?h=7.75) the same way so the
+  // hours shown in the box are the hours calculated.
+  const hours = round1(s.h);
+  const hoursOk = Number.isFinite(hours) && hours > 0 && hours <= 24;
   const valid = wageOk && hoursOk;
   // From 2027 only the 2027 rules apply. In 2026 the visitor picks; by default the 2027 최저시급 (10,700원)
   // uses the 2027 예상 — the same figure as the 2026·2027 tables and the 최저임금 계산기 — other wages this month.
@@ -76,7 +79,7 @@ export function HourlyWageCalculator({
   const r = valid
     ? calcHourly({
         wage: s.w,
-        dailyHours: s.h,
+        dailyHours: hours,
         days,
         perfectAttendance: s.a,
         deduction: mode,
@@ -114,11 +117,12 @@ export function HourlyWageCalculator({
                 : undefined
             }
           />
-          <HoursField
+          <NumberField
             label="하루 근무시간"
-            value={s.h}
+            value={hours}
             onChange={(h) => set({ h })}
             unit="시간"
+            decimals={1}
             max={24}
             presets={[3, 4, 5, 6, 8].map((n) => ({ label: `${n}시간`, value: n }))}
             hint="휴게시간은 빼고 넣어 주세요. 30분은 0.5시간이에요."
@@ -182,8 +186,8 @@ export function HourlyWageCalculator({
                 value={`${hoursLabel(r.contractualWeekly)}시간`}
                 note={
                   r.overtime > 0
-                    ? `${hoursLabel(s.h)}시간 × ${days}일 중 연장 ${hoursLabel(r.overtime)}시간 제외`
-                    : `${hoursLabel(s.h)}시간 × ${days}일`
+                    ? `${hoursLabel(hours)}시간 × ${days}일 중 연장 ${hoursLabel(r.overtime)}시간 제외`
+                    : `${hoursLabel(hours)}시간 × ${days}일`
                 }
               />
               <StatementRow label="주급(기본)" value={formatWon(r.weeklyBase)} note={`시급 × ${hoursLabel(r.weeklyWork)}시간`} />

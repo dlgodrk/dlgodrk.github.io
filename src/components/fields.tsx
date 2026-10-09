@@ -114,7 +114,8 @@ export function NumberField({
             let raw = e.target.value.replace(/[^\d.,]/g, "");
             if (decimals > 0) {
               const [i, ...rest] = raw.replace(/,/g, "").split(".");
-              raw = rest.length ? `${i}.${rest.join("").slice(0, decimals)}` : i;
+              // A leading "." becomes "0." so ".5" can be typed as 0.5.
+              raw = rest.length ? `${i || "0"}.${rest.join("").slice(0, decimals)}` : i;
             } else {
               raw = raw.replace(/\./g, "");
             }
@@ -141,7 +142,7 @@ export function NumberField({
               key={p.label}
               type="button"
               className="chip"
-              aria-pressed={value === p.value}
+              aria-pressed={Object.is(value, p.value)}
               onClick={() => {
                 setDraft(null);
                 onChange(p.value);

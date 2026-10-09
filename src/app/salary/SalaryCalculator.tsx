@@ -36,7 +36,6 @@ import {
 import { rulePayMonth } from "@/lib/rates/insurance";
 import { useToday } from "@/lib/useToday";
 import { useUrlState } from "@/lib/useUrlState";
-import { DecimalField } from "./DecimalField";
 
 const RATIO_OPTIONS = [
   { value: "80", label: "80% (매달 덜 떼기)" },
@@ -140,8 +139,8 @@ export function SalaryCalculator({
               hint="근로계약서에 적힌 세전 연봉을 만원 단위로 넣어 주세요."
             />
           ) : (
-            // The shared NumberField drops a typed decimal point ("312." → "312"), so 월급 uses a draft-text field.
-            <DecimalField
+            // 월급 takes up to 4 decimals (312.5 → 312만 5,000원); NumberField keeps "312." while it is typed.
+            <NumberField
               key="m"
               label="월급 (세전)"
               value={s.a}

@@ -4,7 +4,18 @@ import { ToolShell } from "@/components/ToolShell";
 import { pageMetadata, type FaqItem } from "@/lib/seo";
 import { formatNumber } from "@/lib/format";
 import { diffDays, formatKoreanDate, ymd } from "@/lib/date";
-import { dayMilestoneDate, dayNumberOn, ddayLabel, eventYMD, pastEvents, upcomingEvents, yearMilestoneDate } from "@/lib/calc/dday";
+import {
+  betweenWorkdays,
+  dayMilestoneDate,
+  dayNumberOn,
+  ddayLabel,
+  eventYMD,
+  HOLIDAY_DATA_CHECKED,
+  HOLIDAY_DATA_RANGE,
+  pastEvents,
+  upcomingEvents,
+  yearMilestoneDate,
+} from "@/lib/calc/dday";
 import { BUILD_DAY } from "./buildDay";
 import { DdayCalculator } from "./DdayCalculator";
 
@@ -18,6 +29,10 @@ export const metadata: Metadata = pageMetadata({
 
 // Fixed example start date used in the prose tables (not "today").
 const EXAMPLE = ymd(2026, 10, 9);
+// 근무일 example: 2026-10-09 → 2026-12-31, start day excluded (the calculator's default range on that day).
+const WORK_EXAMPLE = betweenWorkdays(EXAMPLE, ymd(2026, 12, 31));
+// Whole years with holiday data (start day included). 2027: 365 − 119 (월력요항 주 5일제 휴일) = 246.
+const WORK_YEARS = [2026, 2027].map((y) => ({ y, ...betweenWorkdays(ymd(y, 1, 1), ymd(y, 12, 31), true) }));
 
 const FAQ: FaqItem[] = [
   {
@@ -38,7 +53,7 @@ const FAQ: FaqItem[] = [
   },
   {
     q: "날짜 사이 평일 수에 공휴일도 빠지나요?",
-    a: "아니요. 평일 수는 토요일과 일요일만 뺀 월~금요일 수입니다. 설·추석 같은 공휴일은 따로 빼야 합니다.",
+    a: `기본으로 보여 주는 평일 수는 토요일과 일요일만 뺀 월~금요일 수입니다. ‘공휴일 제외 (평일 근무일만)’을 켜면 ${HOLIDAY_DATA_RANGE} 관공서 공휴일과 대체공휴일까지 뺀 근무일수를 달력 일수와 함께 보여 줍니다. 공휴일 자료가 없는 해의 날짜는 주말만 뺍니다.`,
   },
   {
     q: "2월 29일에 시작하면 1주년은 언제인가요?",
@@ -56,7 +71,7 @@ export default function DdayPage() {
       slug="dday"
       h1="디데이 계산기 (D-day·날짜 계산)"
       lead="목표일까지 남은 날, 두 날짜 사이 일수, 며칠 뒤 날짜, 100일·1000일 기념일을 한 번에 계산해 드려요. 오늘 날짜는 접속한 날 기준으로 자동 반영돼요."
-      basis="한국 시간(KST) 기준 · 기간 계산은 민법 제157조·제160조 원칙"
+      basis={`한국 시간(KST) 기준 · 기간 계산은 민법 제157조·제160조 원칙 · 공휴일 ${HOLIDAY_DATA_RANGE} 자료(${HOLIDAY_DATA_CHECKED} 확인)`}
       calculator={<DdayCalculator />}
       faq={FAQ}
     >
@@ -129,9 +144,51 @@ export default function DdayPage() {
         </a>
         에서 확인할 수 있습니다.
       </p>
-      <p className="note">
-        평일 수는 토·일만 뺀 값입니다. 공휴일과 대체공휴일은 해마다 달라 따로 빼야 하며, 근무일·영업일 계산이 필요하면 회사 달력을
-        함께 확인하세요.
+
+      <h2>공휴일을 뺀 근무일수</h2>
+      <p>
+        ‘날짜 사이’의 평일 수는 토요일과 일요일만 뺀 값입니다. ‘공휴일 제외 (평일 근무일만)’을 켜면 평일에 걸린 관공서 공휴일과
+        대체공휴일, 선거일까지 빼서 주 5일 근무자의 근무일수를 달력 일수와 함께 보여 줍니다. 공휴일 날짜는 「관공서의 공휴일에 관한
+        규정」과 우주항공청 월력요항을 바탕으로 {HOLIDAY_DATA_CHECKED}에 확인한 {HOLIDAY_DATA_RANGE} 자료를 씁니다.
+      </p>
+      <p className="formula">근무일수 = 달력 일수 − 토·일 − 평일 공휴일</p>
+      <p>
+        예를 들어 2026년 10월 9일부터 12월 31일까지 첫날을 빼고 세면 달력으로 {formatNumber(WORK_EXAMPLE.calendarDays)}일이고, 이 중
+        토·일이 {formatNumber(WORK_EXAMPLE.weekend)}일, 평일 공휴일이{" "}
+        {WORK_EXAMPLE.holidays.map((h) => `${h.name}(${h.date.m}월 ${h.date.d}일)`).join(", ")} {formatNumber(WORK_EXAMPLE.holidays.length)}일이라
+        근무일은 <strong>{formatNumber(WORK_EXAMPLE.workdays)}일</strong>입니다. 출근 첫날도 근무일로 세려면 ‘시작일도 하루로 세기’를 함께
+        켭니다.
+      </p>
+      <div className="table-wrap">
+        <table className="data-table">
+          <caption>연간 근무일수 (주 5일, 관공서 공휴일 기준)</caption>
+          <thead>
+            <tr>
+              <th scope="col">연도</th>
+              <th scope="col">달력 일수</th>
+              <th scope="col">토·일</th>
+              <th scope="col">평일 공휴일</th>
+              <th scope="col">근무일수</th>
+            </tr>
+          </thead>
+          <tbody>
+            {WORK_YEARS.map((r) => (
+              <tr key={r.y}>
+                <td>{r.y}년</td>
+                <td>{formatNumber(r.calendarDays)}일</td>
+                <td>{formatNumber(r.weekend)}일</td>
+                <td>{formatNumber(r.holidays.length)}일</td>
+                <td>{formatNumber(r.workdays)}일</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p>
+        {HOLIDAY_DATA_RANGE} 밖의 날짜는 공휴일이 아직 정해지지 않았거나 자료가 없어 토·일만 뺍니다. 그래서 그 기간의 실제 근무일은
+        계산 결과보다 적을 수 있고, 결과 아래에 자료 밖의 날수를 따로 알려 드립니다. 다음 해 공휴일은 매년 6월 무렵 월력요항이
+        발표되면 추가합니다. 연도별 공휴일 목록, 토요일 근무나 5인 미만 사업장 기준 근무일수, n영업일 뒤 날짜는{" "}
+        <Link href="/holidays/">공휴일·근무일 계산기</Link>에서 볼 수 있습니다.
       </p>
 
       <h2>주요 일정 D-day</h2>

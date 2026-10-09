@@ -25,7 +25,9 @@ function toText(n: number, decimals: number): string {
  * number shown in the box is the number used in the calculation.
  *
  * With `allowNegative`, a +/− button sits left of the box: the iOS decimal keypad has no minus
- * key, so without it iPhone users could only paste a negative value.
+ * key, so without it iPhone users could only paste a negative value. This is why the box stays
+ * local: the shared NumberField strips the minus sign.
+ * Like NumberField, the hint is linked to the box with aria-describedby.
  */
 export function DecimalField({
   label,
@@ -54,6 +56,7 @@ export function DecimalField({
   placeholder?: string;
 }) {
   const id = useId();
+  const hintId = `${id}-hint`;
   const inputRef = useRef<HTMLInputElement>(null);
   // Whether the box had focus when the ± button was pressed, so typing can continue after the flip.
   const keepFocus = useRef(false);
@@ -107,6 +110,7 @@ export function DecimalField({
           inputMode={decimals > 0 ? "decimal" : "numeric"}
           autoComplete="off"
           placeholder={placeholder}
+          aria-describedby={hint ? hintId : undefined}
           value={text}
           onChange={(e) => apply(e.target.value)}
         />
@@ -128,7 +132,11 @@ export function DecimalField({
           ))}
         </div>
       ) : null}
-      {hint ? <p className="field-hint">{hint}</p> : null}
+      {hint ? (
+        <p id={hintId} className="field-hint">
+          {hint}
+        </p>
+      ) : null}
     </div>
   );
 }

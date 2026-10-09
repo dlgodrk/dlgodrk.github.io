@@ -17,6 +17,18 @@
  */
 import { addDays, addMonths, compareYMD, daysInMonth, diffDays, parseYMD, toUTC, type YMD } from "@/lib/date";
 import { formatNumber } from "@/lib/format";
+import {
+  FIRST_YEAR,
+  HOLIDAY_YEARS,
+  HOLIDAYS_CHECKED_AT,
+  holidaysOf,
+  holidayYMD,
+  isWeeklyRest,
+  LAST_YEAR,
+  offHoliday,
+  shortHolidayName,
+  type Holiday,
+} from "./holidays";
 
 export type DdayMode = "dday" | "between" | "add" | "anniv";
 export const DDAY_MODES: DdayMode[] = ["dday", "between", "add", "anniv"];
@@ -119,7 +131,7 @@ export function dayOfWeek(v: YMD): number {
   return new Date(toUTC(v)).getUTCDay();
 }
 
-/** Number of Mon–Fri days in the inclusive range [from, to]. 0 if to < from. Public holidays are NOT removed. */
+/** Number of Mon–Fri days in the inclusive range [from, to]. 0 if to < from. Public holidays are NOT removed (see betweenWorkdays). */
 export function countWeekdays(from: YMD, to: YMD): number {
   const total = diffDays(from, to) + 1;
   if (total <= 0) return 0;
@@ -130,6 +142,88 @@ export function countWeekdays(from: YMD, to: YMD): number {
     if (dow !== 0 && dow !== 6) count++;
   }
   return count;
+}
+
+// ---------------------------------------------------------------------------
+// 근무일수 (공휴일 제외) for the 날짜 사이 mode.
+// Holiday dates are not kept here: they come from the verified table in holidays.ts
+// (관공서의 공휴일에 관한 규정 + 우주항공청 월력요항). A new year added there is picked up automatically.
+// ---------------------------------------------------------------------------
+
+/** Years with holiday data for the UI and prose: "2026~2027년". */
+export const HOLIDAY_DATA_RANGE = FIRST_YEAR === LAST_YEAR ? `${FIRST_YEAR}년` : `${FIRST_YEAR}~${LAST_YEAR}년`;
+const checkedAt = parseYMD(HOLIDAYS_CHECKED_AT);
+/** "2026년 10월 9일": when the holiday table was last checked against official sources. */
+export const HOLIDAY_DATA_CHECKED = checkedAt ? `${checkedAt.y}년 ${checkedAt.m}월 ${checkedAt.d}일` : HOLIDAYS_CHECKED_AT;
+
+/** "full": every counted day has holiday data; "partial": some do; "none": none do (only weekends removed). */
+export type HolidayCoverage = "full" | "partial" | "none";
+
+/** `name` is the short label, e.g. "성탄절", "광복절 대체공휴일". */
+export type WeekdayHoliday = { date: YMD; holiday: Holiday; name: string };
+
+export type BetweenWorkdays = {
+  /** First and last counted day: (from, to] when the start day is excluded, [from, to] when included. */
+  start: YMD;
+  end: YMD;
+  /** Days counted (= the 날짜 사이 day count for the same includeStart). */
+  calendarDays: number;
+  /** Mon–Fri days in the counted range. */
+  weekdays: number;
+  /** Saturdays and Sundays in the counted range. */
+  weekend: number;
+  /** Public holidays (incl. 대체공휴일·선거일) on Mon–Fri inside the range and the data years, in date order. */
+  holidays: WeekdayHoliday[];
+  /** 근무일수 = weekdays − holidays.length (주 5일, 관공서 공휴일 기준). */
+  workdays: number;
+  /** Counted days outside the data years: only weekends are removed there. */
+  uncoveredDays: number;
+  coverage: HolidayCoverage;
+};
+
+/**
+ * 근무일수 between two dates (from ≤ to) for a 주 5일 worker: Mon–Fri minus public holidays and
+ * 대체공휴일 from holidays.ts. Counts the same days as daysBetween(from, to, includeStart).
+ * Walks the holiday list, not the days, so any range the date input allows (years 1000–9999) is exact and fast.
+ * Outside the data years nothing but weekends is removed; `uncoveredDays` and `coverage` say so.
+ */
+export function betweenWorkdays(from: YMD, to: YMD, includeStart = false): BetweenWorkdays {
+  const start = includeStart ? from : addDays(from, 1);
+  const end = to;
+  const calendarDays = Math.max(0, diffDays(start, end) + 1);
+  const weekdays = countWeekdays(start, end);
+  let covered = 0;
+  const holidays: WeekdayHoliday[] = [];
+  if (calendarDays > 0) {
+    for (const y of HOLIDAY_YEARS) {
+      const ys = compareYMD(start, { y, m: 1, d: 1 }) > 0 ? start : { y, m: 1, d: 1 };
+      const ye = compareYMD(end, { y, m: 12, d: 31 }) < 0 ? end : { y, m: 12, d: 31 };
+      if (compareYMD(ys, ye) <= 0) covered += diffDays(ys, ye) + 1;
+      const seen = new Set<string>();
+      for (const h of holidaysOf(y)) {
+        if (seen.has(h.date)) continue;
+        seen.add(h.date);
+        const d = holidayYMD(h);
+        if (compareYMD(d, start) < 0 || compareYMD(d, end) > 0 || isWeeklyRest(d)) continue;
+        const off = offHoliday(d);
+        if (off) holidays.push({ date: d, holiday: off, name: shortHolidayName(off) });
+      }
+    }
+  }
+  holidays.sort((a, b) => compareYMD(a.date, b.date));
+  const uncoveredDays = calendarDays - covered;
+  const coverage: HolidayCoverage = uncoveredDays === 0 ? "full" : covered === 0 ? "none" : "partial";
+  return {
+    start,
+    end,
+    calendarDays,
+    weekdays,
+    weekend: calendarDays - weekdays,
+    holidays,
+    workdays: weekdays - holidays.length,
+    uncoveredDays,
+    coverage,
+  };
 }
 
 /**
@@ -251,7 +345,9 @@ export function milestoneWindow(list: Milestone[], today: YMD, size = 20, past =
 // ---------------------------------------------------------------------------
 // Well-known upcoming dates → /dday/<slug>/
 // Every date below was checked against an official source on 2026-10-09.
-// Update this list once a year (after 우주항공청 월력요항 and 평가원 수능 계획 are published).
+// Public holiday dates (설·추석·신정·성탄절, 대체공휴일) are owned by src/lib/calc/holidays.ts — add a new
+// year there first; dday.test.ts checks every holiday date written in these events against that table.
+// Non-holiday events (수능) follow the 평가원 시행 기본계획 and are added here when it is published.
 // ---------------------------------------------------------------------------
 
 export type EventDate = { label: string; date: string; end?: string; note?: string };

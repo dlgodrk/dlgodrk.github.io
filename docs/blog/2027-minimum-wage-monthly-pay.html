@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>2027 최저임금 10,700원 월급·주급·주휴수당 총정리</title>
+</head>
+<body style="max-width:720px;margin:0 auto;padding:24px 16px 48px;background-color:#ffffff;color:#222222;font-family:'Noto Sans KR','Malgun Gothic','Apple SD Gothic Neo',sans-serif;">
+<!-- blog-meta:start -->
+<div style="user-select:none;-webkit-user-select:none;-ms-user-select:none;margin:0 0 32px;padding:14px 16px;border:1px dashed #999999;background-color:#f6f6f6;font-size:13px;line-height:1.8;color:#555555;">
+<strong>네이버 블로그 원고</strong> · 이 회색 상자는 전체 선택(Ctrl+A)에서 빠지도록 설정했습니다. 붙여넣은 뒤 이 상자가 보이면 지워 주세요. 제목과 태그는 docs/blog/README.md에서 복사하세요.<br>
+제목: 2027 최저임금 10,700원 월급·주급·주휴수당 총정리 (32자)<br>
+카테고리: 생활 계산기<br>
+태그: #2027최저임금 #최저임금10700원 #2027최저시급 #주휴수당 #주휴수당계산 #알바월급 #최저임금월급 #시급계산기 #주15시간 #생활계산기<br>
+숫자 기준: src/lib/calc/minimum-wage.ts (calcMinimumWage, netMonthly) · 2027년 세후는 예상치
+</div>
+<!-- blog-meta:end -->
+<p style="margin:0 0 16px;font-size:16px;line-height:1.8;">2027년 최저임금은 시간당 10,700원입니다. 2026년 10,320원보다 380원(3.7%) 올랐고, 2026년 8월 5일 고시되어 2027년 1월 1일부터 근로자를 1명 이상 쓰는 모든 사업장에 적용됩니다. 주 40시간 일하면 주휴수당을 포함한 월 환산액이 2,236,300원입니다. 주 15·20·30시간 아르바이트까지 근무시간별 주휴수당과 주급, 월급을 정리했습니다.</p>
+<h2 style="margin:36px 0 14px;font-size:21px;line-height:1.4;">주휴수당 받는 조건과 계산법</h2>
+<p style="margin:0 0 16px;font-size:16px;line-height:1.8;">주휴수당은 1주 동안 정해진 근무일을 모두 나온 근로자에게 주는 유급휴일 수당입니다(근로기준법 제55조, 같은 법 시행령 제30조 제1항). 4주를 평균한 1주 소정근로시간이 15시간 이상이어야 합니다(제18조 제3항). 상시 근로자 5명 미만 사업장에도 똑같이 적용됩니다.</p>
+<p style="margin:0 0 16px;font-size:16px;line-height:1.8;"><strong>주휴수당 = 시급 × (1주 소정근로시간 ÷ 40 × 8시간)</strong></p>
+<p style="margin:0 0 16px;font-size:16px;line-height:1.8;">주 40시간 이상 일하면 주휴시간은 8시간으로 고정됩니다. 2027년 최저임금으로 주 20시간 일하면 주휴시간은 4시간이고 주휴수당은 10,700 × 4 = 42,800원입니다.</p>
+<h2 style="margin:36px 0 14px;font-size:21px;line-height:1.4;">2027 최저임금 근무시간별 주급·월급</h2>
+<p style="margin:20px 0 8px;font-size:15px;font-weight:bold;">표 1. 2027년 최저임금 10,700원 기준 (세전, 단위: 원)</p>
+<table border="1" cellspacing="0" cellpadding="7" style="border-collapse:collapse;width:100%;font-size:14px;line-height:1.5;">
+  <thead>
+    <tr><th style="padding:7px 8px;background-color:#f1f3f5;font-weight:bold;text-align:center;">주 근무시간</th><th style="padding:7px 8px;background-color:#f1f3f5;font-weight:bold;text-align:center;">주휴시간</th><th style="padding:7px 8px;background-color:#f1f3f5;font-weight:bold;text-align:center;">주휴수당(1주)</th><th style="padding:7px 8px;background-color:#f1f3f5;font-weight:bold;text-align:center;">주급(주휴 포함)</th><th style="padding:7px 8px;background-color:#f1f3f5;font-weight:bold;text-align:center;">월 환산 시간</th><th style="padding:7px 8px;background-color:#f1f3f5;font-weight:bold;text-align:center;">월급</th></tr>
+  </thead>
+  <tbody>
+    <tr><td style="padding:7px 8px;text-align:center;">주 15시간</td><td style="padding:7px 8px;text-align:right;">3시간</td><td style="padding:7px 8px;text-align:right;">32,100</td><td style="padding:7px 8px;text-align:right;">192,600</td><td style="padding:7px 8px;text-align:right;">78.21</td><td style="padding:7px 8px;text-align:right;"><strong>836,893</strong></td></tr>
+    <tr><td style="padding:7px 8px;text-align:center;">주 20시간</td><td style="padding:7px 8px;text-align:right;">4시간</td><td style="padding:7px 8px;text-align:right;">42,800</td><td style="padding:7px 8px;text-align:right;">256,800</td><td style="padding:7px 8px;text-align:right;">104.29</td><td style="padding:7px 8px;text-align:right;"><strong>1,115,857</strong></td></tr>
+    <tr><td style="padding:7px 8px;text-align:center;">주 30시간</td><td style="padding:7px 8px;text-align:right;">6시간</td><td style="padding:7px 8px;text-align:right;">64,200</td><td style="padding:7px 8px;text-align:right;">385,200</td><td style="padding:7px 8px;text-align:right;">156.43</td><td style="padding:7px 8px;text-align:right;"><strong>1,673,786</strong></td></tr>
+    <tr><td style="padding:7px 8px;text-align:center;">주 40시간</td><td style="padding:7px 8px;text-align:right;">8시간</td><td style="padding:7px 8px;text-align:right;">85,600</td><td style="padding:7px 8px;text-align:right;">513,600</td><td style="padding:7px 8px;text-align:right;">209</td><td style="padding:7px 8px;text-align:right;"><strong>2,236,300</strong></td></tr>
+  </tbody>
+</table>
+<p style="margin:6px 0 20px;font-size:13px;line-height:1.7;color:#666666;">월급 = 시급 × (주 소정근로시간 + 주휴시간) × 365 ÷ 7 ÷ 12, 원 단위 반올림. 월 환산 시간은 소수점 둘째 자리까지 표시했습니다.</p>
+<p style="margin:0 0 16px;font-size:16px;line-height:1.8;">주 40시간의 월 환산 시간은 계산상 208.57시간이지만 최저임금 고시에서는 209시간으로 씁니다. 주 20시간은 (20 + 4) × 365 ÷ 7 ÷ 12 = 104.2857…시간이라 월급이 1,115,857원이고, 104시간으로 끊으면 3,057원 적게, 105시간으로 올리면 7,643원 많게 나옵니다.</p>
+<h2 style="margin:36px 0 14px;font-size:21px;line-height:1.4;">2026년보다 얼마나 오르고, 세후로는 얼마일까</h2>
+<p style="margin:20px 0 8px;font-size:15px;font-weight:bold;">표 2. 2026년·2027년 최저임금 월급 비교와 2027년 세후 예상 (단위: 원)</p>
+<table border="1" cellspacing="0" cellpadding="7" style="border-collapse:collapse;width:100%;font-size:14px;line-height:1.5;">
+  <thead>
+    <tr><th style="padding:7px 8px;background-color:#f1f3f5;font-weight:bold;text-align:center;">주 근무시간</th><th style="padding:7px 8px;background-color:#f1f3f5;font-weight:bold;text-align:center;">2026년 월급</th><th style="padding:7px 8px;background-color:#f1f3f5;font-weight:bold;text-align:center;">2027년 월급</th><th style="padding:7px 8px;background-color:#f1f3f5;font-weight:bold;text-align:center;">인상액</th><th style="padding:7px 8px;background-color:#f1f3f5;font-weight:bold;text-align:center;">2027년 세후(예상)</th></tr>
+  </thead>
+  <tbody>
+    <tr><td style="padding:7px 8px;text-align:center;">주 15시간</td><td style="padding:7px 8px;text-align:right;">807,171</td><td style="padding:7px 8px;text-align:right;">836,893</td><td style="padding:7px 8px;text-align:right;">+29,722</td><td style="padding:7px 8px;text-align:right;">753,533</td></tr>
+    <tr><td style="padding:7px 8px;text-align:center;">주 20시간</td><td style="padding:7px 8px;text-align:right;">1,076,229</td><td style="padding:7px 8px;text-align:right;">1,115,857</td><td style="padding:7px 8px;text-align:right;">+39,628</td><td style="padding:7px 8px;text-align:right;">1,002,697</td></tr>
+    <tr><td style="padding:7px 8px;text-align:center;">주 30시간</td><td style="padding:7px 8px;text-align:right;">1,614,343</td><td style="padding:7px 8px;text-align:right;">1,673,786</td><td style="padding:7px 8px;text-align:right;">+59,443</td><td style="padding:7px 8px;text-align:right;">1,493,336</td></tr>
+    <tr><td style="padding:7px 8px;text-align:center;">주 40시간</td><td style="padding:7px 8px;text-align:right;">2,156,880</td><td style="padding:7px 8px;text-align:right;">2,236,300</td><td style="padding:7px 8px;text-align:right;">+79,420</td><td style="padding:7px 8px;text-align:right;">1,983,830</td></tr>
+  </tbody>
+</table>
+<p style="margin:6px 0 20px;font-size:13px;line-height:1.7;color:#666666;">세후(예상)는 4대보험 근로자 부담분과 소득세·지방소득세를 뺀 금액으로, 비과세 0원·공제대상가족 본인 1명 기준입니다. 2027년 금액은 예상치로, 법으로 정해진 국민연금 인상(근로자 4.75% → 5.0%)과 7.19%로 동결된 건강보험료율(2026년 9월 8일 건강보험정책심의위원회 의결, 고시 전)을 반영하고, 아직 정해지지 않은 장기요양·고용보험 요율과 간이세액표는 2026년 값으로 가정했습니다.</p>
+<p style="margin:0 0 16px;font-size:16px;line-height:1.8;">주 40시간 근로자는 2027년에 월 79,420원, 1년에 953,040원을 더 받습니다. 4대보험과 세금을 떼면 실수령액은 1,920,580원에서 1,983,830원으로 63,250원 늘어날 것으로 예상됩니다. 월급이 오르면 4대보험료와 소득세도 함께 늘고, 2027년에는 국민연금 근로자 요율까지 4.75%에서 5.0%로 오르기 때문에 세후 인상액은 세전 인상액보다 16,170원 작습니다. 이 차이 가운데 요율 인상 몫은 5,590원입니다.</p>
+<h2 style="margin:36px 0 14px;font-size:21px;line-height:1.4;">놓치기 쉬운 5가지</h2>
+<ul>
+  <li style="margin:0 0 10px;font-size:16px;line-height:1.8;"><strong>수습 감액은 조건이 까다롭습니다.</strong> 계약 기간이 1년 이상이거나 기간을 정하지 않은 근로자만 수습 3개월 동안 최저임금의 90%(2027년 9,630원)까지 줄 수 있습니다. 1년 미만 계약이거나 단순노무직이면 감액할 수 없습니다(최저임금법 제5조 제2항).</li>
+  <li style="margin:0 0 10px;font-size:16px;line-height:1.8;"><strong>주 15시간 미만이면 주휴수당이 없습니다.</strong> 기준은 계약서의 1주 소정근로시간입니다. 근무 요일이 들쭉날쭉하다면 4주 동안의 소정근로시간을 더해 4로 나눠 확인합니다.</li>
+  <li style="margin:0 0 10px;font-size:16px;line-height:1.8;"><strong>정해진 시간을 넘기면 50%를 더 받습니다.</strong> 상시 5명 이상 사업장은 1일 8시간, 1주 40시간을 넘는 연장근로에 통상임금의 50%를 더 줘야 합니다(근로기준법 제50조·제56조). 주 15·20시간처럼 단시간으로 계약했다면 하루 8시간·주 40시간 안이라도 계약한 시간을 넘긴 만큼 50%를 더 받습니다(기간제법 제6조). 5명 미만 사업장은 두 경우 모두 가산 의무가 없습니다.</li>
+  <li style="margin:0 0 10px;font-size:16px;line-height:1.8;"><strong>3.3%를 뗀다면 계약 형태부터 확인해야 합니다.</strong> 3.3% 원천징수는 사업소득(프리랜서)에 쓰는 방식입니다. 사업주의 지휘·감독을 받으며 정해진 시간에 일했다면 계약 이름과 관계없이 근로자로 인정될 수 있고, 그러면 주휴수당도 받을 수 있습니다.</li>
+  <li style="margin:0 0 10px;font-size:16px;line-height:1.8;"><strong>월급제라면 매달 받는 수당까지 합쳐 봅니다.</strong> 2024년부터 매달 주는 상여금과 식대 같은 현금성 복리후생비도 전부 최저임금에 들어갑니다. 주 40시간 월급제라면 기본급에 이런 수당을 더한 금액이 2,236,300원 이상인지 확인하면 됩니다.</li>
+</ul>
+<h2 style="margin:36px 0 14px;font-size:21px;line-height:1.4;">내 근무 조건으로 계산하기</h2>
+<p style="margin:0 0 16px;font-size:16px;line-height:1.8;">셈셈 계산기는 제가 직접 만들어 운영하는 무료 계산기 사이트입니다. 2026년과 2027년 최저임금 기준 일급·월급·연봉 차이와 수습 감액은 이 사이트의 <a href="https://dlgodrk.github.io/minimum-wage/">최저임금 계산기</a>에서 한 번에 비교할 수 있습니다. 시급과 근무시간을 직접 넣어 보려면 같은 사이트의 시급·주휴수당 계산기를 씁니다.</p>
+<p style="margin:6px 0 20px;font-size:13px;line-height:1.7;color:#666666;">출처: 최저임금위원회 2027년 적용 최저임금 의결(2026. 7. 14.), 고용노동부 최저임금 고시(2026. 8. 5.), 근로기준법 제18조·제50조·제55조·제56조 및 같은 법 시행령 제30조, 최저임금법 제5조·제6조 및 같은 법 시행령 제3조·제5조, 기간제 및 단시간근로자 보호 등에 관한 법률 제6조 (2026년 10월 9일 확인)</p>
+</body>
+</html>

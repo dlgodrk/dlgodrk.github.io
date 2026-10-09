@@ -4,10 +4,11 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { CalcLayout, CalcNotice } from "@/components/CalcLayout";
 import { CheckboxField, DateField, NumberField, SegmentedField } from "@/components/fields";
-import { Statement, StatementFootnote, StatementHero, StatementRow, StatementSection } from "@/components/Statement";
+import { Statement, StatementFootnote, StatementHero, StatementRow, StatementSection, StatementTotal } from "@/components/Statement";
 import { addDays, compareYMD, diffDays, formatKoreanDate, formatYMD, parseYMD, weekdayKo, type YMD } from "@/lib/date";
 import { formatNumber } from "@/lib/format";
 import {
+  betweenWorkdays,
   calendarSpan,
   countWeekdays,
   dayNumberOn,
@@ -20,6 +21,8 @@ import {
   eventOn,
   formatSpan,
   formatWeeks,
+  HOLIDAY_DATA_CHECKED,
+  HOLIDAY_DATA_RANGE,
   inclusiveSpan,
   MAX_INPUT_DATE,
   MAX_SHIFT_DAYS,
@@ -33,6 +36,7 @@ import {
   spanMonths,
   upcomingEvents,
   type AnnivKind,
+  type BetweenWorkdays,
   type DdayMode,
 } from "@/lib/calc/dday";
 import { useToday } from "@/lib/useToday";
@@ -82,7 +86,7 @@ function DateInput({
 
 export function DdayCalculator({ initialTarget = "", initialMode = "dday" }: { initialTarget?: string; initialMode?: DdayMode }) {
   const { today, isLive } = useToday();
-  // URL keys: m = mode | t = D-day target | s/e/i = between start/end/include start
+  // URL keys: m = mode | t = D-day target | s/e/i/h = between start/end/include start/exclude holidays
   // b/n/w/j = add-days base/count/direction/include base | a/k = anniversary start/kind
   const [s, set] = useUrlState({
     m: initialMode as DdayMode,
@@ -90,6 +94,7 @@ export function DdayCalculator({ initialTarget = "", initialMode = "dday" }: { i
     s: "",
     e: "",
     i: false as boolean,
+    h: false as boolean,
     b: "",
     n: 100,
     w: "after" as Way,
@@ -152,11 +157,17 @@ export function DdayCalculator({ initialTarget = "", initialMode = "dday" }: { i
           onChange={(i) => set({ i })}
           hint="기념일·근무일처럼 첫날을 세는 경우에 켜세요. 계약·법정 기간은 보통 첫날을 빼고 셉니다(민법 초일 불산입)."
         />
+        <CheckboxField
+          label="공휴일 제외 (평일 근무일만)"
+          checked={s.h}
+          onChange={(h) => set({ h })}
+          hint={`토·일과 공휴일·대체공휴일을 뺀 근무일수를 달력 일수와 함께 보여 줘요. 공휴일 자료는 ${HOLIDAY_DATA_RANGE}이에요.`}
+        />
       </>
     );
     result =
       start && end ? (
-        <BetweenResult a={start} b={end} includeStart={s.i} />
+        <BetweenResult a={start} b={end} includeStart={s.i} excludeHolidays={s.h} />
       ) : (
         <CalcNotice>시작일과 종료일을 모두 골라 주세요.</CalcNotice>
       );
@@ -318,7 +329,52 @@ function DdayResult({ target, today, isLive, basis }: { target: YMD; today: YMD;
   );
 }
 
-function BetweenResult({ a, b, includeStart }: { a: YMD; b: YMD; includeStart: boolean }) {
+/** Weekday holidays listed by name in the 근무일 statement; the rest are summed in one row. */
+const MAX_HOLIDAY_ROWS = 10;
+
+/** "12월 25일 (금)", with the year when the range spans years. */
+function holidayDate(v: YMD, withYear: boolean): string {
+  return withYear ? formatKoreanDate(v) : `${v.m}월 ${v.d}일 (${weekdayKo(v)})`;
+}
+
+/** 근무일 breakdown: 달력 일수 − 주말 − 평일 공휴일 = 근무일수, then the holidays by name. */
+function WorkdaySections({ work, includeStart }: { work: BetweenWorkdays; includeStart: boolean }) {
+  const shown = work.holidays.slice(0, MAX_HOLIDAY_ROWS);
+  const rest = work.holidays.length - shown.length;
+  const withYear = work.start.y !== work.end.y;
+  return (
+    <>
+      <StatementSection title="근무일 (주 5일, 공휴일 제외)">
+        <StatementRow
+          label="달력 일수"
+          note={includeStart ? "시작일 포함" : "시작일 다음 날부터"}
+          value={`${formatNumber(work.calendarDays)}일`}
+        />
+        <StatementRow label="주말 (토·일)" value={`−${formatNumber(work.weekend)}일`} />
+        {work.coverage === "none" ? (
+          <StatementRow label="평일 공휴일" note={`자료는 ${HOLIDAY_DATA_RANGE}만 있음`} value="반영 안 됨" />
+        ) : (
+          <StatementRow
+            label="평일 공휴일"
+            note={work.coverage === "partial" ? `${HOLIDAY_DATA_RANGE} 안의 날만` : "대체공휴일·선거일 포함"}
+            value={`−${formatNumber(work.holidays.length)}일`}
+          />
+        )}
+      </StatementSection>
+      <StatementTotal label="근무일수" value={`${formatNumber(work.workdays)}일`} />
+      {shown.length ? (
+        <StatementSection title="빠진 평일 공휴일">
+          {shown.map((h) => (
+            <StatementRow key={formatYMD(h.date)} label={h.name} value={holidayDate(h.date, withYear)} />
+          ))}
+          {rest > 0 ? <StatementRow label="그 밖의 평일 공휴일" value={`${formatNumber(rest)}일`} /> : null}
+        </StatementSection>
+      ) : null}
+    </>
+  );
+}
+
+function BetweenResult({ a, b, includeStart, excludeHolidays }: { a: YMD; b: YMD; includeStart: boolean; excludeHolidays: boolean }) {
   const { from, to, swapped } = orderDates(a, b);
   const days = daysBetween(from, to, includeStart);
   const excl = daysBetween(from, to, false);
@@ -327,29 +383,57 @@ function BetweenResult({ a, b, includeStart }: { a: YMD; b: YMD; includeStart: b
   const weekdays = countWeekdays(rangeStart, to);
   // 시작일 포함: a month counted from the 31st ends on the last day of a shorter month (민법 제160조 제3항).
   const span = includeStart ? inclusiveSpan(from, to) : calendarSpan(from, to);
+  const work = excludeHolidays ? betweenWorkdays(from, to, includeStart) : null;
+  const range = `${formatKoreanDate(from, false)}부터 ${formatKoreanDate(to, false)}까지`;
   return (
-    <Statement title="날짜 사이 일수 명세" caption={includeStart ? "시작일 포함" : "시작일 제외"}>
-      <StatementHero
-        label={`${formatKoreanDate(from, false)}부터 ${formatKoreanDate(to, false)}까지`}
-        value={`${formatNumber(days)}일`}
-        sub={`${formatWeeks(days)} · ${formatSpan(span)}`}
-      />
+    <Statement title="날짜 사이 일수 명세" caption={`${includeStart ? "시작일 포함" : "시작일 제외"}${work ? " · 공휴일 제외" : ""}`}>
+      {work ? (
+        <StatementHero
+          label={`${range} 근무일`}
+          value={`${formatNumber(work.workdays)}일`}
+          sub={
+            work.coverage === "none"
+              ? `달력 ${formatNumber(days)}일 · 주말 ${formatNumber(work.weekend)}일 제외 · 공휴일 자료 밖`
+              : `달력 ${formatNumber(days)}일 · 주말 ${formatNumber(work.weekend)}일 · 평일 공휴일 ${formatNumber(work.holidays.length)}일 제외`
+          }
+        />
+      ) : (
+        <StatementHero label={range} value={`${formatNumber(days)}일`} sub={`${formatWeeks(days)} · ${formatSpan(span)}`} />
+      )}
       <StatementSection title="기간">
         <StatementRow label="시작일" value={formatKoreanDate(from)} />
         <StatementRow label="종료일" value={formatKoreanDate(to)} />
-        <StatementRow label="시작일 제외" note="민법 방식, 일반 D-day와 같음" value={`${formatNumber(excl)}일`} emphasis={!includeStart} />
-        <StatementRow label="시작일 포함" note="기념일 방식" value={`${formatNumber(excl + 1)}일`} emphasis={includeStart} />
+        <StatementRow label="시작일 제외" note="민법 방식, 일반 D-day와 같음" value={`${formatNumber(excl)}일`} emphasis={!work && !includeStart} />
+        <StatementRow label="시작일 포함" note="기념일 방식" value={`${formatNumber(excl + 1)}일`} emphasis={!work && includeStart} />
       </StatementSection>
+      {work ? <WorkdaySections work={work} includeStart={includeStart} /> : null}
       <StatementSection title="다른 단위로">
         <StatementRow label="주" value={formatWeeks(days)} />
         <StatementRow label="달력 기준" note="년·개월·일" value={formatSpan(span)} />
-        <StatementRow label="평일 (월~금)" note="공휴일 미반영" value={`${formatNumber(weekdays)}일`} />
-        <StatementRow label="주말 (토·일)" value={`${formatNumber(days - weekdays)}일`} />
+        {work ? null : (
+          <>
+            <StatementRow label="평일 (월~금)" note="공휴일 미반영" value={`${formatNumber(weekdays)}일`} />
+            <StatementRow label="주말 (토·일)" value={`${formatNumber(days - weekdays)}일`} />
+          </>
+        )}
         <StatementRow label="시간" value={`${formatNumber(days * 24)}시간`} />
       </StatementSection>
       <StatementFootnote>
         {swapped ? "종료일이 시작일보다 앞서 있어 두 날짜를 바꿔 계산했어요. " : ""}
-        평일 수는 토·일만 뺀 값이라 설·추석 같은 공휴일은 따로 빼야 해요.{" "}
+        {work ? (
+          <>
+            {work.coverage === "none"
+              ? `이 기간은 공휴일 자료(${HOLIDAY_DATA_RANGE}) 밖이라 토·일만 뺐어요. 실제 근무일은 이보다 적을 수 있어요. `
+              : work.coverage === "partial"
+                ? `${HOLIDAY_DATA_RANGE} 밖의 ${formatNumber(work.uncoveredDays)}일은 공휴일 자료가 없어 토·일만 뺐어요. `
+                : ""}
+            근무일은 주 5일 근무와 관공서 공휴일(대체공휴일·선거일 포함) 기준이에요. 공휴일 자료는 {HOLIDAY_DATA_RANGE}이고{" "}
+            {HOLIDAY_DATA_CHECKED}에 확인했어요. 토요일 근무나 5인 미만 사업장 기준은{" "}
+            <Link href="/holidays/">공휴일·근무일 계산기</Link>에서 셀 수 있어요.{" "}
+          </>
+        ) : (
+          "평일 수는 토·일만 뺀 값이에요. ‘공휴일 제외’를 켜면 공휴일·대체공휴일까지 뺀 근무일수를 볼 수 있어요. "
+        )}
         {includeStart
           ? "개월 수는 시작일부터 다음 달 같은 날짜의 전날까지를 1개월로 보고, 그 날짜가 없는 달은 말일까지를 1개월로 봐요(1월 31일~2월 28일 = 1개월)."
           : "개월 수는 달력 기준이고, 같은 날짜가 없는 달은 그 달 마지막 날로 봐요."}

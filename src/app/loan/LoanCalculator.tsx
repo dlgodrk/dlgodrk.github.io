@@ -24,7 +24,6 @@ import {
   type RepayMethod,
 } from "@/lib/calc/loan";
 import { useUrlState } from "@/lib/useUrlState";
-import { DecimalField } from "./DecimalField";
 
 type MethodKey = "eq" | "pr" | "bu";
 type Unit = "y" | "m";
@@ -129,7 +128,7 @@ export function LoanCalculator({
               reading={(n) => koreanWon(n)}
               presets={AMOUNT_PRESETS}
             />
-            <DecimalField
+            <NumberField
               label="연 이자율"
               value={rate}
               onChange={(r) => set({ r })}
@@ -154,7 +153,7 @@ export function LoanCalculator({
                 { value: "m", label: "개월" },
               ]}
             />
-            <DecimalField
+            <NumberField
               label="대출기간"
               value={term}
               onChange={(t) => set({ t })}

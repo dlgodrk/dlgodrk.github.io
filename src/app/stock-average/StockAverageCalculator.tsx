@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useId, type ReactNode } from "react";
 import { CalcLayout, CalcNotice } from "@/components/CalcLayout";
 import { CheckboxField, NumberField, SegmentedField, SelectField } from "@/components/fields";
 import { Statement, StatementFootnote, StatementHero, StatementRow, StatementSection } from "@/components/Statement";
@@ -80,16 +80,30 @@ function riseValue(rise: number): string {
   return rise > 0 ? formatSignedPercent(rise) : "필요 없음";
 }
 
-/** Bordered group of two boxes (단가·수량) with a small title row. */
+/**
+ * Bordered group of two boxes (단가·수량) with a small title row.
+ * Like the shared fields, the hint is linked to the group with aria-describedby.
+ */
 function LotGroup({ title, action, hint, children }: { title: string; action?: ReactNode; hint?: ReactNode; children: ReactNode }) {
+  const id = useId();
+  const hintId = `${id}-hint`;
   return (
-    <div role="group" aria-label={title} className="grid gap-3 rounded-lg border border-rule p-3 sm:p-4">
+    <div
+      role="group"
+      aria-label={title}
+      aria-describedby={hint ? hintId : undefined}
+      className="grid gap-3 rounded-lg border border-rule p-3 sm:p-4"
+    >
       <div className="flex min-h-6 items-center justify-between gap-2">
         <span className="text-sm font-semibold text-ink">{title}</span>
         {action}
       </div>
       <div className="grid items-start gap-3 sm:grid-cols-2">{children}</div>
-      {hint ? <p className="field-hint">{hint}</p> : null}
+      {hint ? (
+        <p id={hintId} className="field-hint">
+          {hint}
+        </p>
+      ) : null}
     </div>
   );
 }

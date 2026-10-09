@@ -1,0 +1,612 @@
+@import "tailwindcss";
+
+/*
+ * 셈셈 계산기 design tokens.
+ * Concept: a printed statement (명세서) on cool office paper.
+ * Ink navy for text, one stamp red (인주) used only for the headline result seal.
+ */
+:root {
+  --paper: #f2f4f7;
+  --sheet: #ffffff;
+  --ink: #16202e;
+  --ink-soft: #3a475a;
+  --muted: #687487;
+  --rule: #dde2e9;
+  --rule-strong: #b6c0cd;
+  --link: #1d55b5;
+  --wash: #e8eef8;
+  --seal: #c4352b;
+  --focus: #1d55b5;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #11151b;
+    --sheet: #181e27;
+    --ink: #e7ebf0;
+    --ink-soft: #bac3cf;
+    --muted: #8b96a6;
+    --rule: #2a3340;
+    --rule-strong: #445061;
+    --link: #86aef2;
+    --wash: #1f2a3a;
+    --seal: #e8635a;
+    --focus: #86aef2;
+  }
+}
+
+@theme inline {
+  --color-paper: var(--paper);
+  --color-sheet: var(--sheet);
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-muted: var(--muted);
+  --color-rule: var(--rule);
+  --color-rule-strong: var(--rule-strong);
+  --color-link: var(--link);
+  --color-wash: var(--wash);
+  --color-seal: var(--seal);
+  --font-sans: var(--font-plex-kr), "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}
+
+/* ---------- layout ---------- */
+.page-wrap {
+  width: 100%;
+  max-width: 72rem;
+  margin-inline: auto;
+  padding-inline: 1rem;
+}
+@media (min-width: 640px) {
+  .page-wrap {
+    padding-inline: 1.5rem;
+  }
+}
+
+.calc-grid {
+  display: grid;
+  gap: 1.25rem;
+  align-items: start;
+}
+@media (min-width: 900px) {
+  .calc-grid {
+    grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
+    gap: 2rem;
+  }
+  .calc-result {
+    position: sticky;
+    top: 5rem;
+  }
+}
+
+.calc-inputs {
+  display: grid;
+  gap: 1.25rem;
+  background: var(--sheet);
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  padding: 1.25rem;
+}
+@media (min-width: 640px) {
+  .calc-inputs {
+    padding: 1.5rem;
+  }
+}
+
+.calc-notice {
+  border: 1px dashed var(--rule-strong);
+  border-radius: 8px;
+  padding: 1rem 1.125rem;
+  color: var(--ink-soft);
+  background: var(--sheet);
+}
+
+/* ---------- fields ---------- */
+.field {
+  display: grid;
+  gap: 0.5rem;
+}
+.field-label {
+  font-weight: 600;
+  color: var(--ink);
+  font-size: 0.9375rem;
+}
+.field-hint {
+  font-size: 0.8125rem;
+  color: var(--muted);
+  line-height: 1.5;
+}
+.field-reading {
+  font-size: 0.875rem;
+  color: var(--ink-soft);
+}
+.field-control {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.field-input {
+  width: 100%;
+  min-height: 3rem;
+  border: 1px solid var(--rule-strong);
+  border-radius: 8px;
+  background: var(--sheet);
+  color: var(--ink);
+  padding: 0.625rem 0.875rem;
+  font-size: 1.125rem;
+  font-weight: 500;
+  transition: border-color 0.15s;
+}
+.field-input:hover {
+  border-color: var(--muted);
+}
+.field-input:focus {
+  outline: none;
+  border-color: var(--focus);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus) 22%, transparent);
+}
+.field-control:has(.field-unit) .field-input {
+  padding-right: 3.75rem;
+  text-align: right;
+}
+.field-unit {
+  position: absolute;
+  right: 0.875rem;
+  color: var(--muted);
+  font-size: 1rem;
+  pointer-events: none;
+}
+.field-select {
+  appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%),
+    linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+  background-position: calc(100% - 20px) 50%, calc(100% - 15px) 50%;
+  background-size: 5px 5px;
+  background-repeat: no-repeat;
+  padding-right: 2.5rem;
+  font-size: 1rem;
+}
+.field-textarea {
+  font-size: 1rem;
+  font-weight: 400;
+  line-height: 1.7;
+  resize: vertical;
+}
+input[type="date"].field-input {
+  font-size: 1rem;
+}
+.checkbox {
+  width: 1.125rem;
+  height: 1.125rem;
+  accent-color: var(--link);
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+}
+.chip {
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  padding: 0.3rem 0.75rem;
+  font-size: 0.8125rem;
+  color: var(--ink-soft);
+  background: var(--sheet);
+  cursor: pointer;
+}
+.chip:hover {
+  border-color: var(--rule-strong);
+  color: var(--ink);
+}
+.chip[aria-pressed="true"] {
+  border-color: var(--link);
+  background: var(--wash);
+  color: var(--link);
+  font-weight: 600;
+}
+
+.segmented {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  border: 1px solid var(--rule-strong);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.segment {
+  min-height: 2.75rem;
+  padding: 0.5rem 0.5rem;
+  font-size: 0.9375rem;
+  color: var(--ink-soft);
+  background: var(--sheet);
+  cursor: pointer;
+}
+.segment + .segment {
+  border-left: 1px solid var(--rule);
+}
+.segment[aria-checked="true"] {
+  background: var(--ink);
+  color: var(--sheet);
+  font-weight: 600;
+}
+
+.stepper {
+  display: inline-grid;
+  grid-template-columns: 3rem 4.5rem 3rem;
+  align-items: center;
+  border: 1px solid var(--rule-strong);
+  border-radius: 8px;
+  overflow: hidden;
+  width: max-content;
+  background: var(--sheet);
+}
+.stepper button {
+  height: 3rem;
+  font-size: 1.25rem;
+  color: var(--ink);
+  cursor: pointer;
+}
+.stepper button:disabled {
+  color: var(--rule-strong);
+  cursor: not-allowed;
+}
+.stepper output {
+  text-align: center;
+  font-size: 1.125rem;
+  font-weight: 600;
+  border-inline: 1px solid var(--rule);
+  line-height: 3rem;
+}
+
+.btn-ghost {
+  border: 1px solid var(--rule-strong);
+  border-radius: 8px;
+  padding: 0.5rem 0.875rem;
+  font-size: 0.875rem;
+  color: var(--ink-soft);
+  background: var(--sheet);
+  cursor: pointer;
+}
+.btn-ghost:hover {
+  color: var(--ink);
+  border-color: var(--muted);
+}
+
+/* ---------- statement (명세서) ---------- */
+.statement {
+  container-type: inline-size;
+  background: var(--sheet);
+  border: 1px solid var(--rule-strong);
+  border-radius: 4px;
+  box-shadow: 0 18px 30px -24px rgb(22 32 46 / 0.45);
+}
+.statement-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.25rem 1rem;
+  padding: 1rem 1.25rem 0.875rem;
+  border-bottom: 2px solid var(--ink);
+}
+.statement-title {
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.statement-caption {
+  font-size: 0.8125rem;
+  color: var(--muted);
+}
+.statement-hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.25rem 1.25rem 1.125rem;
+}
+.statement-hero-label {
+  font-size: 0.875rem;
+  color: var(--ink-soft);
+  font-weight: 500;
+}
+.statement-hero-value {
+  margin-top: 0.125rem;
+  /* Scale with the statement's own width so long figures never break mid-number. */
+  font-size: clamp(1.5rem, 9cqi, 2.625rem);
+  line-height: 1.15;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  color: var(--ink);
+  /* Wrap only between words; never inside a number like 2,935,813원. */
+  word-break: keep-all;
+  overflow-wrap: normal;
+}
+.statement-hero-sub {
+  margin-top: 0.25rem;
+  font-size: 0.9375rem;
+  color: var(--ink-soft);
+}
+.seal {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 4.25rem;
+  height: 4.25rem;
+  border-radius: 50%;
+  border: 2px solid var(--seal);
+  box-shadow: inset 0 0 0 3px var(--sheet), inset 0 0 0 4.5px var(--seal);
+  color: var(--seal);
+  font-weight: 700;
+  font-size: 0.875rem;
+  letter-spacing: 0.04em;
+  transform: rotate(-11deg);
+  opacity: 0.92;
+  animation: seal-in 0.35s ease-out both;
+}
+@keyframes seal-in {
+  from {
+    transform: rotate(-11deg) scale(1.35);
+    opacity: 0;
+  }
+  to {
+    transform: rotate(-11deg) scale(1);
+    opacity: 0.92;
+  }
+}
+.statement-section {
+  padding: 0.25rem 1.25rem 0.75rem;
+  border-top: 1px dashed var(--rule-strong);
+}
+.statement-section-title {
+  margin: 0.75rem 0 0.25rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+.statement-rows {
+  display: grid;
+}
+.statement-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding: 0.375rem 0;
+  font-size: 0.9375rem;
+}
+.statement-row dt {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0 0.375rem;
+  min-width: 0;
+  color: var(--ink-soft);
+}
+.statement-note {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+.statement-leader {
+  flex: 1;
+  min-width: 0.75rem;
+  border-bottom: 1px dotted var(--rule-strong);
+  transform: translateY(-0.3em);
+}
+.statement-row dd {
+  white-space: nowrap;
+  font-weight: 500;
+  color: var(--ink);
+}
+.statement-row.is-emphasis dt,
+.statement-row.is-emphasis dd {
+  font-weight: 700;
+  color: var(--ink);
+}
+.statement-total {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.875rem 1.25rem;
+  border-top: 3px double var(--ink);
+  font-weight: 700;
+  font-size: 1.0625rem;
+}
+.statement-footnote {
+  padding: 0 1.25rem 1rem;
+  font-size: 0.75rem;
+  line-height: 1.6;
+  color: var(--muted);
+}
+
+/* ---------- long-form content ---------- */
+.prose-ko {
+  max-width: 48rem;
+  color: var(--ink-soft);
+  line-height: 1.8;
+  font-size: 1rem;
+}
+.prose-ko > * + * {
+  margin-top: 1rem;
+}
+.prose-ko h2 {
+  margin-top: 2.75rem;
+  font-size: 1.375rem;
+  line-height: 1.35;
+  font-weight: 700;
+  color: var(--ink);
+  letter-spacing: -0.01em;
+}
+.prose-ko h2:first-child {
+  margin-top: 0;
+}
+.prose-ko h3 {
+  margin-top: 1.75rem;
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+.prose-ko strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+.prose-ko a {
+  color: var(--link);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.prose-ko .link-grid a {
+  color: var(--ink-soft);
+  text-decoration: none;
+}
+.prose-ko .link-grid a:hover {
+  color: var(--link);
+}
+.prose-ko ul,
+.prose-ko ol {
+  padding-left: 1.25rem;
+}
+.prose-ko ul {
+  list-style: disc;
+}
+.prose-ko ol {
+  list-style: decimal;
+}
+.prose-ko li + li {
+  margin-top: 0.375rem;
+}
+.prose-ko code {
+  font-size: 0.9em;
+  background: var(--wash);
+  padding: 0.1em 0.35em;
+  border-radius: 4px;
+}
+.prose-ko .formula {
+  background: var(--sheet);
+  border-left: 3px solid var(--ink);
+  padding: 0.75rem 1rem;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.prose-ko .note {
+  font-size: 0.875rem;
+  color: var(--muted);
+}
+
+/* Data tables inside prose and on programmatic pages */
+.table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  background: var(--sheet);
+}
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9375rem;
+  font-variant-numeric: tabular-nums;
+}
+.data-table caption {
+  caption-side: top;
+  text-align: left;
+  padding: 0.75rem 1rem 0.25rem;
+  font-size: 0.8125rem;
+  color: var(--muted);
+}
+.data-table th,
+.data-table td {
+  padding: 0.625rem 1rem;
+  border-bottom: 1px solid var(--rule);
+  text-align: right;
+  white-space: nowrap;
+}
+.data-table th:first-child,
+.data-table td:first-child {
+  text-align: left;
+}
+.data-table thead th {
+  font-weight: 600;
+  color: var(--ink);
+  border-bottom: 2px solid var(--ink);
+  font-size: 0.8125rem;
+}
+.data-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+/* Text cells that should wrap and read left-aligned (descriptions, legal notes). */
+.data-table .text-cell,
+.data-table td.text-cell,
+.data-table th.text-cell {
+  white-space: normal;
+  text-align: left;
+  min-width: 9rem;
+}
+.data-table tfoot td,
+.data-table tfoot th {
+  border-top: 2px solid var(--ink);
+  border-bottom: 0;
+  font-weight: 700;
+  color: var(--ink);
+}
+.data-table tr.is-current td {
+  background: var(--wash);
+  font-weight: 700;
+  color: var(--ink);
+}
+.data-table a {
+  color: var(--link);
+}
+.data-table a:hover {
+  text-decoration: underline;
+}
+
+/* Grid of links to programmatic pages (e.g. 연봉 2000만원 ~ 1억) */
+.link-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(7.5rem, 1fr));
+  gap: 0.25rem 0.75rem;
+  font-size: 0.9375rem;
+}
+.link-grid a {
+  display: block;
+  padding: 0.375rem 0;
+  color: var(--ink-soft);
+  border-bottom: 1px solid var(--rule);
+}
+.link-grid a:hover {
+  color: var(--link);
+}
+.link-grid a[aria-current="page"] {
+  color: var(--ink);
+  font-weight: 700;
+}

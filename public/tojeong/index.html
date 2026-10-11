@@ -58,9 +58,10 @@ select{width:100%;background:var(--paper);color:var(--ink);border:1px solid var(
 .calc .bar{height:3px;background:var(--rule);margin-top:14px;position:relative;overflow:hidden}
 .calc .bar i{position:absolute;left:0;top:0;height:100%;width:0;background:var(--seal);transition:width 8s linear}
 /* 장부 */
-.ledger-head{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:end;border-bottom:2px solid var(--ink);padding:26px 0 10px;margin-bottom:6px}
-.ledger-head h2{margin:0;font-size:22px;font-weight:700;letter-spacing:.05em}
-.ledger-head .meta{font-family:var(--mono);font-size:12px;color:var(--dim);line-height:1.7;text-align:right}
+.ledger-head{border-bottom:2px solid var(--ink);padding:26px 0 10px;margin-bottom:6px}
+.ledger-head h2{margin:0 0 4px;font-size:21px;font-weight:700;letter-spacing:.05em;white-space:nowrap}
+.ledger-head .meta{font-family:var(--mono);font-size:12px;color:var(--dim);line-height:1.7}
+.issuer .t span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .progress{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center;padding:12px 0;border-bottom:1px solid var(--rule)}
 .progress .pb{height:8px;background:var(--paper2);border:1px solid var(--rule);position:relative}
 .progress .pb i{position:absolute;left:0;top:0;height:100%;width:12.5%;background:var(--seal)}

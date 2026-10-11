@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>토정 돈과 일 풀이</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;600;700&family=Nanum+Myeongjo:wght@400;700&display=swap">
+<style>
+/* 레이아웃: 세로 한 줄 흐름, 검은 바탕에 금빛 글자. 김귀자 화면 뼈대 그대로, 내용만 토정. */
+:root{
+  --bg:#070605; --panel:#0f0c0a; --line:#3a2e22; --fg:#e8dcc4; --dim:#9c8f78; --gold:#d8b46a; --red:#b3261e; --red-dim:#5a1a14;
+  --display:"Nanum Myeongjo","Noto Serif KR",serif; --body:"Noto Serif KR","Nanum Myeongjo",serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--body);line-height:1.8;padding-block:0 40px;padding-inline:16px}
+.wrap{max-width:560px;margin:0 auto}
+.screen[hidden]{display:none!important}
+h1{font-family:var(--display);font-weight:700;font-size:28px;text-align:center;color:var(--gold);letter-spacing:.08em;margin:36px 0 10px;text-wrap:balance}
+.meta{text-align:center;color:var(--dim);font-size:12px;letter-spacing:.1em;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:8px 0;margin-bottom:28px}
+.portrait{width:200px;height:260px;margin:0 auto 28px;border-radius:50%/50%;border:1px solid var(--line);background:radial-gradient(ellipse at 50% 35%,#2a211a 0%,#120e0b 70%);display:flex;align-items:center;justify-content:center;overflow:hidden}
+.portrait svg{width:170px;height:220px}
+.story{text-align:center;font-size:17px;line-height:2;color:var(--fg)}
+.story p{margin:0 0 22px}
+.btn{display:block;width:100%;max-width:280px;margin:28px auto 0;padding:14px;background:transparent;border:1px solid var(--gold);color:var(--gold);font-family:var(--display);font-size:18px;letter-spacing:.1em;cursor:pointer}
+.btn:focus-visible,.btn-red:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
+.notice{color:var(--dim);font-size:12px;text-align:center;margin-top:28px;line-height:1.7}
+/* 팝업 */
+.pop{position:fixed;inset:0;background:rgba(0,0,0,.82);display:flex;align-items:center;justify-content:center;padding:16px;z-index:9}
+.pop[hidden]{display:none!important}
+.pop .box{background:#0b0908;border:1px solid var(--line);max-width:520px;padding:36px 28px;text-align:center;font-size:17px;line-height:1.9}
+.pop .box p{margin:0 0 20px}
+/* 입력 */
+.field{margin-bottom:22px}
+.label{color:var(--dim);font-size:13px;margin-bottom:8px;letter-spacing:.05em}
+.seg{display:grid;gap:0;border:1px solid var(--line)}
+.seg.c2{grid-template-columns:1fr 1fr}.seg.c4{grid-template-columns:repeat(4,1fr)}
+.seg button{background:transparent;border:0;border-right:1px solid var(--line);color:var(--dim);font-family:var(--body);font-size:16px;padding:16px 4px;cursor:pointer}
+.seg button:last-child{border-right:0}
+.seg button[aria-pressed="true"]{color:var(--fg);background:#1a140f}
+select{width:100%;background:#0b0908;color:var(--fg);border:1px solid var(--line);padding:14px 12px;font-family:var(--body);font-size:16px}
+.row3{display:grid;grid-template-columns:1.3fr 1fr 1fr;gap:10px}
+/* 대기 */
+.wait{text-align:center;padding:90px 0 60px;color:var(--gold);font-family:var(--display);font-size:20px;letter-spacing:.08em}
+.wait .bar{height:1px;background:var(--line);margin:30px auto 0;max-width:240px;position:relative;overflow:hidden}
+.wait .bar i{position:absolute;left:0;top:0;height:100%;width:0;background:var(--gold);transition:width 8s linear}
+/* 맛보기 */
+.gwae{font-family:var(--display);color:var(--gold);font-size:14px;letter-spacing:.2em;text-align:center;margin:30px 0 6px}
+.hanmun{text-align:center;font-size:22px;letter-spacing:.3em;color:var(--fg);font-family:var(--display);margin-bottom:34px}
+.chap{font-family:var(--display);font-size:22px;color:var(--gold);margin:0 0 18px}
+.chap b{font-size:26px;margin-right:10px}
+.line{font-size:17px;margin:0 0 14px;opacity:0;transform:translateY(6px);transition:opacity .6s,transform .6s}
+.line.on{opacity:1;transform:none}
+hr.sep{border:0;height:1px;width:60px;background:var(--line);margin:40px auto}
+.threat{text-align:center;font-size:17px;line-height:2.1}
+.threat .small{color:var(--dim);font-size:14px}
+.intro{text-align:center;color:var(--dim);font-size:15px;line-height:2;margin:36px 0 26px}
+.toc{border:1px solid var(--line);background:var(--panel);padding:8px 18px}
+.toc .it{display:grid;grid-template-columns:22px 1fr;gap:10px;padding:14px 0;border-bottom:1px solid #1e1813}
+.toc .it:last-child{border-bottom:0}
+.toc .n{color:var(--red);font-family:var(--display);font-size:14px;padding-top:4px}
+.toc .t{font-size:16px;color:var(--fg)}
+.toc .s{font-size:13px;color:var(--dim);margin-top:4px}
+.toc .b{margin-top:8px;height:34px;filter:blur(5px);user-select:none;color:#6a5d4a;font-size:12px;overflow:hidden}
+.hope{text-align:center;font-size:17px;margin:34px 0 10px}
+.price{border:1px solid var(--red-dim);background:#120a08;padding:26px 18px;text-align:center;margin-top:28px}
+.price .cmp{color:var(--dim);font-size:13px}
+.price .big{font-family:var(--display);font-size:38px;color:var(--fg);margin:6px 0 2px}
+.price .now{color:var(--red);font-size:13px}
+.proof{border:1px solid var(--line);background:var(--panel);padding:16px 18px;margin-top:22px;font-size:14px;color:var(--dim);line-height:1.8}
+.proof .h{color:var(--gold);font-size:12px;letter-spacing:.15em;margin-bottom:6px}
+.proof .k{color:var(--fg);font-family:var(--display);letter-spacing:.2em}
+.phone{margin-top:22px}
+.phone input{width:100%;background:#0b0908;border:1px solid var(--line);color:var(--fg);padding:14px;font-size:16px;text-align:center;font-family:var(--body)}
+.btn-red{display:block;width:100%;margin-top:14px;padding:16px;background:var(--red);border:0;color:#fff;font-family:var(--display);font-size:18px;letter-spacing:.08em;cursor:pointer}
+.tiny{color:var(--dim);font-size:12px;text-align:center;margin-top:10px}
+.mock{position:fixed;left:0;right:0;bottom:0;background:#1a140f;color:var(--dim);font-size:12px;text-align:center;padding:8px calc(16px) calc(8px + env(safe-area-inset-bottom,0px));border-top:1px solid var(--line)}
+.mock button{background:transparent;border:1px solid var(--line);color:var(--fg);padding:4px 10px;margin:0 4px;cursor:pointer;font-size:12px}
+@media (prefers-reduced-motion:reduce){.line{transition:none;opacity:1;transform:none}.wait .bar i{transition:none}}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+<!-- 1. 소개 -->
+<section class="screen" id="s-intro">
+  <h1>토정비결</h1>
+  <div class="meta">돈과 일 풀이 &nbsp;|&nbsp; 토정 이지함 (1517~1578)</div>
+  <div class="portrait" aria-label="쇠솥을 갓처럼 쓴 토정의 초상 자리">
+    <svg viewBox="0 0 170 220" role="img" aria-hidden="true">
+      <ellipse cx="85" cy="150" rx="62" ry="58" fill="#d9cdb6"/>
+      <ellipse cx="85" cy="108" rx="40" ry="48" fill="#c9b79b"/>
+      <path d="M38 78 Q85 40 132 78 L124 86 Q85 60 46 86 Z" fill="#2b2b2b"/>
+      <ellipse cx="85" cy="78" rx="48" ry="12" fill="#1d1d1d"/>
+      <path d="M62 150 Q85 170 108 150" stroke="#5a4a3a" stroke-width="2" fill="none"/>
+      <path d="M70 120 l8 3 M100 120 l-8 3" stroke="#3b2f24" stroke-width="2"/>
+    </svg>
+  </div>
+  <div class="story">
+    <p>해당 풀이는<br>조선 중기, 마포 강변 흙집에 살며<br>쇠솥을 갓 삼아 전국을 떠돌던<br>토정 이지함 (1517~1578)의 이름으로<br>전해 내려온 토정비결 원문을 바탕으로 제작되었습니다.</p>
+    <p>토정은 양반이면서 장사를 하고 소금을 구워<br>가난한 이를 먹였고, 아산 현감 때는<br>거지에게 일을 가르치는 걸인청을 세웠습니다.</p>
+    <p>돈이 새는 자리를 짚어 주는 비결,<br>옮길 때와 머물 때를 가르는 비결,<br>사람을 한 번 보고 앞날을 말했다는 비결로<br>토정비결은 사백 년을 전해졌습니다.</p>
+  </div>
+  <button class="btn" id="b-start">내 괘 보기</button>
+  <p class="notice">역사 인물 토정 이지함을 바탕으로 만든 캐릭터입니다.<br>풀이는 토정비결 원문을 바탕으로 한 참고용 글이며 예언이 아닙니다.</p>
+</section>
+
+<!-- 2. 팝업 -->
+<div class="pop" id="pop" hidden>
+  <div class="box">
+    <p>토정비결은 사주 명리학과 다른 체계입니다.<br>생년월일의 간지와 그해의 태세로 괘를 뽑고,<br>그 괘에 전해 내려온 글귀로 한 해를 풀이합니다.</p>
+    <p>사주 명리 관점의 풀이를 보시는 분들은<br>다른 곳으로의 방문을 추천드립니다.</p>
+    <button class="btn" id="b-ok" style="margin-top:6px">확인</button>
+  </div>
+</div>
+
+<!-- 3. 입력 -->
+<section class="screen" id="s-input" hidden>
+  <h1>생년월일을 알려주세요</h1>
+  <div class="field"><div class="label">성별</div>
+    <div class="seg c2" data-seg="gender"><button type="button" aria-pressed="false">남</button><button type="button" aria-pressed="false">여</button></div></div>
+  <div class="field"><div class="label">지금 상황</div>
+    <div class="seg c4" data-seg="sit"><button type="button" aria-pressed="false">직장인</button><button type="button" aria-pressed="false">자영업</button><button type="button" aria-pressed="false">구직 중</button><button type="button" aria-pressed="false">쉬는 중</button></div></div>
+  <div class="field"><div class="label">달력 기준</div>
+    <div class="seg c2" data-seg="cal"><button type="button" aria-pressed="true">양력</button><button type="button" aria-pressed="false">음력</button></div></div>
+  <div class="field"><div class="label">생년월일</div>
+    <div class="row3">
+      <select id="y"><option>연도</option><option>1975</option><option>1980</option><option selected>1985</option><option>1990</option><option>1995</option></select>
+      <select id="m"><option>월</option><option selected>5</option></select>
+      <select id="d"><option>일</option><option selected>12</option></select>
+    </div></div>
+  <button class="btn" id="b-submit">괘 뽑기</button>
+  <p class="notice">가입 없이 바로 봅니다. 태어난 시간은 토정비결에서 쓰지 않습니다.</p>
+</section>
+
+<!-- 4. 대기 -->
+<section class="screen" id="s-wait" hidden>
+  <div class="wait"><div id="wait-msg">괘를 뽑는 중</div><div class="bar"><i id="wait-bar"></i></div></div>
+</section>
+
+<!-- 5. 맛보기 -->
+<section class="screen" id="s-preview" hidden>
+  <h1>토정비결</h1>
+  <div class="meta">1985년 5월 12일 &nbsp;|&nbsp; 양력 &nbsp;|&nbsp; 남 &nbsp;|&nbsp; 직장인</div>
+  <div class="portrait" style="width:150px;height:195px"><svg viewBox="0 0 170 220" aria-hidden="true"><ellipse cx="85" cy="150" rx="62" ry="58" fill="#d9cdb6"/><ellipse cx="85" cy="108" rx="40" ry="48" fill="#c9b79b"/><path d="M38 78 Q85 40 132 78 L124 86 Q85 60 46 86 Z" fill="#2b2b2b"/><ellipse cx="85" cy="78" rx="48" ry="12" fill="#1d1d1d"/></svg></div>
+
+  <div class="gwae">상괘 一 &nbsp; 중괘 一 &nbsp; 하괘 一 &nbsp;&nbsp; 一一一 괘</div>
+  <div class="hanmun">東風解凍 枯木逢春</div>
+
+  <div class="chap"><b>財</b>그대와 돈</div>
+  <p class="line">그대는 돈을 벌 줄은 아는데 쥘 줄은 모르는 사람일세.</p>
+  <p class="line">들어올 때는 크게 들어오고, 나갈 때는 어디로 갔는지 모르지.</p>
+  <p class="line">남한테 쓴 돈은 기억 못 하고, 남이 안 갚은 돈은 오래 기억하고.</p>
+  <p class="line">회사에서는 일 잘한다는 소리를 듣는데, 통장은 그 소리를 못 듣고 있지 않은가.</p>
+  <p class="line">월급날 전 일주일, 늘 같은 자리에서 돈이 비는 걸 그대도 알 걸세.</p>
+  <p class="line">그래도 이 괘는 좋은 괘일세. 동풍에 얼음이 풀리고 마른 나무에 봄이 온다 했네.</p>
+  <p class="line">근데, 한 군데가 걸리네.</p>
+
+  <hr class="sep">
+  <div class="threat">
+    <p>근데... 돈이 새는 자리가 하나 보이네.</p>
+    <p class="small">들어오는 복은 괘에 있는데,<br>그 복이 그대 손에 머물지를 않아.</p>
+    <p>어디서 새는지, 한번 봐 보겠네.</p>
+  </div>
+  <hr class="sep">
+
+  <p class="line">그대는 분명 돈이 붙는 괘일세.</p>
+  <p class="line">근데 왜 해마다 제자리였겠는가.</p>
+  <p class="line">새는 자리를 모르고 지나면 그 달에 또 새네.</p>
+  <p class="line">그 자리가 어디냐 하면</p>
+
+  <div class="intro">새는 자리와 막는 법, 옮길 때와 머물 때,<br>귀인과 소인, 내년 열두 달까지 전부 풀어 놓았네.<br>어느 달에 들어오고 어느 달에 나가는지,<br>그 달에 무엇을 하면 되는지를 풀어 놓았네.</div>
+
+  <div class="toc">
+    <div class="it"><div class="n">1</div><div><div class="t">?</div><div class="s">그대 돈이 새는 그 자리. 괘가 짚는 근본 원인을 풀어 준다.</div><div class="b">월급날 전 일주일 늘 같은 자리에서 비는 이유는 그대 씀씀이가 아니라 괘의 자리 때문일세 그 자리를 알면</div></div></div>
+    <div class="it"><div class="n">2</div><div><div class="t">이달, 지갑을 열어도 되는 때와 닫아야 할 때</div><div class="s">이달 글귀가 말하는 날짜 구간과 그때 할 일, 하지 말 일.</div><div class="b">이달 글귀는 북쪽에서 손님이 온다 했으니 초순에는 지갑을 닫고 하순에 열게 중순에 들어오는</div></div></div>
+    <div class="it"><div class="n">3</div><div><div class="t">지금 자리를 옮겨도 되는가</div><div class="s">옮길 때 얻는 것과 잃는 것, 머물면 오는 것. 그대 괘가 가른다.</div><div class="b">옮기면 돈은 늘고 사람은 주네 이 괘에서 사람을 줄이는 해는 세 해 뒤가 아니라</div></div></div>
+    <div class="it"><div class="n">4</div><div><div class="t">올해 그대 곁의 귀인과 소인</div><div class="s">도움이 올 방향과 사람, 조심할 말과 사람. 원문의 방위 그대로.</div><div class="b">동쪽에서 오는 이는 귀인이고 서쪽에서 오는 말은 흘려듣게 특히 돈 얘기로 먼저</div></div></div>
+    <div class="it"><div class="n">5</div><div><div class="t">내년 열두 달, 돈이 들어오는 달과 나가는 달</div><div class="s">정월부터 섣달까지 원문 열두 구절을 달마다 풀어 준다.</div><div class="b">정월 東風解凍 이월 枯木逢春 삼월 財自東來 사월 口舌可畏 오월</div></div></div>
+    <div class="it"><div class="n">6</div><div><div class="t">그대가 손대면 안 되는 일</div><div class="s">이 괘가 번번이 무너지는 종류의 일. 미리 알면 피한다.</div><div class="b">남 보증과 동업 둘은 이 괘에서 늘 같은 결말로 끝나네 특히 가까운 사람이</div></div></div>
+    <div class="it"><div class="n">7</div><div><div class="t">큰돈이 움직이는 해는 언제인가</div><div class="s">앞으로 열 해 가운데 큰돈이 드는 해와 나가는 해.</div><div class="b">세 해 뒤와 일곱 해 뒤 두 번 큰돈이 움직이네 먼저 오는 해는 들어오는 해이고</div></div></div>
+    <div class="it"><div class="n">8</div><div><div class="t">토정이 그대에게 남기는 한 마디</div><div class="s">이 괘를 받은 사람에게 토정이 남긴 처세 한 줄.</div><div class="b">길한 해일수록 지갑을 닫게 그래야 끝까지 길하네 돈은 벌 줄 아는 사람보다</div></div></div>
+  </div>
+
+  <p class="hope">새는 자리는 막는 게 아니라 길을 돌리는 것일세.<br>어디로 돌릴지는 아래에 적어 두었네.</p>
+
+  <div class="price">
+    <div class="cmp">철학관 신년 상담 1회 5만 원과 비교해 보게</div>
+    <div class="big">₩19,900</div>
+    <div class="now">지금 결제하면 바로 볼 수 있네</div>
+  </div>
+
+  <div class="proof">
+    <div class="h">이 괘의 원문</div>
+    <div class="k">東風解凍 枯木逢春</div>
+    동풍에 얼음이 풀리고 마른 나무에 봄이 온다. 토정비결 一一一 괘 총운 첫 구절. 위 풀이는 이 구절과 열두 달 글귀를 바탕으로 썼다.
+  </div>
+
+  <div class="phone">
+    <div class="label" style="text-align:center">결제 후 카카오톡으로 결과 링크를 보내드립니다</div>
+    <input id="phone" type="tel" placeholder="010-0000-0000" inputmode="numeric">
+  </div>
+  <button class="btn-red" id="b-pay">이어서 보기 · ₩19,900</button>
+  <p class="tiny">지금 결제하면 바로 풀이를 볼 수 있습니다. 열람 후에는 환불이 어렵습니다. 결과 오류, 중복 결제는 예외입니다.</p>
+  <p class="notice">역사 인물 토정 이지함을 바탕으로 만든 캐릭터입니다. 풀이는 토정비결 원문을 바탕으로 한 참고용 글이며 예언이 아닙니다.<br>문집 | 사업자등록번호 612-23-69999 | 통신판매업 신고번호 (신고 후 표기)</p>
+</section>
+
+</div>
+
+<div class="mock">목업입니다. 결제는 안 됩니다. 화면 이동:
+  <button data-go="s-intro">소개</button><button data-go="s-input">입력</button><button data-go="s-wait">대기</button><button data-go="s-preview">맛보기</button>
+</div>
+
+<script>
+(function(){
+  var $=function(id){return document.getElementById(id)};
+  function show(id){
+    ['s-intro','s-input','s-wait','s-preview'].forEach(function(s){ $(s).hidden = (s!==id); });
+    window.scrollTo(0,0);
+    if(id==='s-wait') runWait();
+    if(id==='s-preview') runLines();
+  }
+  $('b-start').addEventListener('click',function(){ $('pop').hidden=false; });
+  $('b-ok').addEventListener('click',function(){ $('pop').hidden=true; show('s-input'); });
+  document.querySelectorAll('.seg').forEach(function(seg){
+    seg.querySelectorAll('button').forEach(function(b){
+      b.addEventListener('click',function(){
+        seg.querySelectorAll('button').forEach(function(x){x.setAttribute('aria-pressed','false')});
+        b.setAttribute('aria-pressed','true');
+      });
+    });
+  });
+  $('b-submit').addEventListener('click',function(){ show('s-wait'); });
+  var msgs=['괘를 뽑는 중','열두 달을 짚는 중','토정이 붓을 드는 중'];
+  function runWait(){
+    var i=0; $('wait-msg').textContent=msgs[0];
+    var bar=$('wait-bar'); bar.style.width='0'; requestAnimationFrame(function(){ bar.style.width='100%'; });
+    var t=setInterval(function(){ i=(i+1)%msgs.length; $('wait-msg').textContent=msgs[i]; },2600);
+    setTimeout(function(){ clearInterval(t); show('s-preview'); },8000);
+  }
+  function runLines(){
+    var lines=document.querySelectorAll('#s-preview .line');
+    lines.forEach(function(l){l.classList.remove('on')});
+    lines.forEach(function(l,k){ setTimeout(function(){ l.classList.add('on'); }, 400+k*900); });
+  }
+  $('b-pay').addEventListener('click',function(){
+    this.textContent='목업이라 결제창이 없습니다'; var b=this; setTimeout(function(){ b.textContent='이어서 보기 · ₩19,900'; },1500);
+  });
+  document.querySelectorAll('.mock button').forEach(function(b){ b.addEventListener('click',function(){ $('pop').hidden=true; show(b.getAttribute('data-go')); }); });
+  show('s-intro');
+})();
+</script>
+</body>
+</html>
